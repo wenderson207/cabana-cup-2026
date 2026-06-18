@@ -839,13 +839,19 @@
         <input class="form-input" id="pTime" placeholder="Flamengo">
       </div>
     </div>
-    <div class="form-group">
-      <label class="form-label">Posição</label>
-      <select class="form-input" id="pPosicao">
-        <option value="">Selecione...</option>
-        <option>GOL</option><option>ZAG</option><option>LAT</option><option>VOL</option>
-        <option>MEI</option><option>ATA</option><option>PNT</option>
-      </select>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="form-group">
+        <label class="form-label">Posição</label>
+        <select class="form-input" id="pPosicao">
+          <option value="">Selecione...</option>
+          <option>GOL</option><option>ZAG</option><option>LAT</option><option>VOL</option>
+          <option>MEI</option><option>ATA</option><option>PNT</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">👕 Número da Camisa</label>
+        <input class="form-input" id="pCamisa" type="number" placeholder="10" min="1" max="99">
+      </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
       <div class="form-group">
@@ -1349,7 +1355,10 @@ function renderPlayers() {
       ${nota !== null ? `<span class="card-badge ${cls}">${label}</span>` : ''}
       <div class="card-top">
         <div><div class="card-rating">${nota !== null ? nota : '—'}</div><div class="card-pos">${p.posicao}</div></div>
-        <div style="text-align:right"><div style="font-size:11px;color:var(--muted)">${p.cidade || ''}</div></div>
+        <div style="text-align:right">
+          ${p.camisa ? `<div style="font-family:'Bebas Neue';font-size:22px;color:rgba(255,215,0,0.5);line-height:1">#${p.camisa}</div>` : ''}
+          <div style="font-size:11px;color:var(--muted)">${p.cidade || ''}</div>
+        </div>
       </div>
       <div class="card-img-wrap">
         ${p.photo ? `<img src="${p.photo}" class="card-img" style="max-height:150px;border-radius:8px;object-fit:cover;width:100%">` : `<div class="card-img-placeholder">${getPlayerEmoji(p)}</div>`}
@@ -1385,7 +1394,7 @@ window.openDetail = function(pid) {
     <div style="text-align:center;margin-bottom:24px">
       ${playerPhoto(p, 90)}
       <div style="font-family:'Bebas Neue';font-size:28px;letter-spacing:2px;margin-top:12px">${p.nome}</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:4px">${p.posicao} • ${p.cidade} • ${p.time}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">${p.posicao}${p.camisa ? ' • #'+p.camisa : ''} • ${p.cidade} • ${p.time}</div>
       ${nota !== null ? `<div style="font-family:'Bebas Neue';font-size:56px;color:var(--gold);line-height:1;margin:8px 0">${nota}</div>
       <span class="card-badge ${cls}" style="position:static;display:inline-block">${label}</span>` : '<div style="color:var(--muted);margin-top:12px">Sem avaliações ainda</div>'}
     </div>
@@ -1674,7 +1683,7 @@ window.openAddPlayer = function() {
   state.editingPlayerId = null;
   state.editingPhotoData = null;
   document.getElementById('modalPlayerTitle').textContent = 'Adicionar Jogador';
-  ['pNome','pIdade','pCidade','pTime'].forEach(id => document.getElementById(id).value = '');
+  ['pNome','pIdade','pCidade','pTime','pCamisa'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('pPosicao').value = '';
   document.getElementById('pGols').value = '0';
   document.getElementById('pAssist').value = '0';
@@ -1694,6 +1703,7 @@ window.editPlayer = function(pid) {
   document.getElementById('pCidade').value = p.cidade;
   document.getElementById('pTime').value = p.time;
   document.getElementById('pPosicao').value = p.posicao;
+  document.getElementById('pCamisa').value = p.camisa || '';
   document.getElementById('pGols').value = p.gols;
   document.getElementById('pAssist').value = p.assist;
   document.getElementById('photoPreviewWrap').innerHTML = p.photo
@@ -1722,6 +1732,7 @@ window.savePlayer = async function() {
   const cidade = document.getElementById('pCidade').value.trim();
   const time = document.getElementById('pTime').value.trim();
   const posicao = document.getElementById('pPosicao').value;
+  const camisa = parseInt(document.getElementById('pCamisa').value) || null;
   const gols = parseInt(document.getElementById('pGols').value) || 0;
   const assist = parseInt(document.getElementById('pAssist').value) || 0;
   const errEl = document.getElementById('playerFormError');
@@ -1737,7 +1748,7 @@ window.savePlayer = async function() {
         photoUrl = await uploadPhoto(photoUrl, pid);
       }
       const p = state.players.find(x => x.id === pid);
-      Object.assign(p, { nome, idade, cidade, time, posicao, gols, assist, photo: photoUrl });
+      Object.assign(p, { nome, idade, cidade, time, posicao, camisa, gols, assist, photo: photoUrl });
       await savePlayer(p);
     } else {
       const pid = 'p_' + Date.now();
@@ -1745,7 +1756,7 @@ window.savePlayer = async function() {
       if (photoUrl && photoUrl.startsWith('data:')) {
         photoUrl = await uploadPhoto(photoUrl, pid);
       }
-      const newPlayer = { id: pid, nome, idade, cidade, time, posicao, gols, assist, photo: photoUrl };
+      const newPlayer = { id: pid, nome, idade, cidade, time, posicao, camisa, gols, assist, photo: photoUrl };
       state.players.push(newPlayer);
       await savePlayer(newPlayer);
     }
