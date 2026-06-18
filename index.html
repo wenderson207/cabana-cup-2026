@@ -618,48 +618,77 @@
 
       <div class="auth-logo"><span>CABANA CUP</span></div>
       <div class="auth-sub">Legends 2026</div>
-      <div class="auth-toggle">
-        <button class="auth-toggle-btn active" id="toggleLogin" onclick="switchAuth('login')">Entrar</button>
-        <button class="auth-toggle-btn" id="toggleReg" onclick="switchAuth('register')">Cadastrar</button>
+
+      <!-- TABS: Jogador / Admin -->
+      <div class="auth-toggle" style="margin-bottom:28px">
+        <button class="auth-toggle-btn active" id="tabJogador" onclick="switchAuthTab('jogador')">Jogador</button>
+        <button class="auth-toggle-btn" id="tabAdmin" onclick="switchAuthTab('admin')">Admin</button>
       </div>
 
-      <!-- LOGIN -->
-      <div id="formLogin">
-        <div class="form-group">
-          <label class="form-label">Nome de Usuário</label>
-          <input class="form-input" id="loginUser" placeholder="seu_usuario" autocomplete="off">
+      <!-- ===== JOGADOR ===== -->
+      <div id="authJogador">
+        <div class="auth-toggle" style="margin-bottom:24px">
+          <button class="auth-toggle-btn active" id="toggleLogin" onclick="switchAuth('login')">Entrar</button>
+          <button class="auth-toggle-btn" id="toggleReg" onclick="switchAuth('register')">Cadastrar</button>
         </div>
-        <div class="form-group">
-          <label class="form-label">Telefone</label>
-          <input class="form-input" id="loginPhone" placeholder="(11) 99999-9999" type="tel">
+
+        <!-- LOGIN -->
+        <div id="formLogin">
+          <div class="form-group">
+            <label class="form-label">Nome de Usuário</label>
+            <input class="form-input" id="loginUser" placeholder="seu_usuario" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Telefone</label>
+            <input class="form-input" id="loginPhone" placeholder="(11) 99999-9999" type="tel">
+          </div>
+          <div id="loginError" class="form-error" style="margin-bottom:12px"></div>
+          <button class="btn-gold" style="width:100%" onclick="doLogin()">Entrar →</button>
+          <p style="text-align:center;margin-top:16px;font-size:12px;color:var(--muted)">
+            Não tem conta? <a href="#" onclick="switchAuth('register')" style="color:var(--gold);text-decoration:none">Cadastre-se</a>
+          </p>
         </div>
-        <div id="loginError" class="form-error" style="margin-bottom:12px"></div>
-        <button class="btn-gold" style="width:100%" onclick="doLogin()">Entrar →</button>
-        <p style="text-align:center;margin-top:16px;font-size:12px;color:var(--muted)">
-          Não tem conta? <a href="#" onclick="switchAuth('register')" style="color:var(--gold);text-decoration:none">Cadastre-se</a>
-        </p>
+
+        <!-- REGISTER -->
+        <div id="formRegister" style="display:none">
+          <div class="form-group">
+            <label class="form-label">Nome Completo</label>
+            <input class="form-input" id="regName" placeholder="João da Silva">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nome de Usuário</label>
+            <input class="form-input" id="regUser" placeholder="joao_silva (único)">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Telefone</label>
+            <input class="form-input" id="regPhone" placeholder="(11) 99999-9999" type="tel">
+          </div>
+          <div id="regError" class="form-error" style="margin-bottom:12px"></div>
+          <button class="btn-gold" style="width:100%" onclick="doRegister()">Criar Conta →</button>
+          <p style="text-align:center;margin-top:16px;font-size:12px;color:var(--muted)">
+            Já tem conta? <a href="#" onclick="switchAuth('login')" style="color:var(--gold);text-decoration:none">Entrar</a>
+          </p>
+        </div>
       </div>
 
-      <!-- REGISTER -->
-      <div id="formRegister" style="display:none">
-        <div class="form-group">
-          <label class="form-label">Nome Completo</label>
-          <input class="form-input" id="regName" placeholder="João da Silva">
+      <!-- ===== ADMIN ===== -->
+      <div id="authAdmin" style="display:none">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;padding:12px 16px;background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.15);border-radius:8px">
+          <span style="font-size:20px">🔐</span>
+          <span style="font-size:12px;color:var(--muted);line-height:1.5">Acesso restrito.<br>Use o e-mail e senha cadastrados no Firebase.</span>
         </div>
         <div class="form-group">
-          <label class="form-label">Nome de Usuário</label>
-          <input class="form-input" id="regUser" placeholder="joao_silva (único)">
+          <label class="form-label">E-mail</label>
+          <input class="form-input" id="adminEmail" placeholder="admin@cabanacup.com" type="email" autocomplete="off">
         </div>
         <div class="form-group">
-          <label class="form-label">Telefone</label>
-          <input class="form-input" id="regPhone" placeholder="(11) 99999-9999" type="tel">
+          <label class="form-label">Senha</label>
+          <input class="form-input" id="adminPassword" placeholder="••••••••" type="password">
         </div>
-        <div id="regError" class="form-error" style="margin-bottom:12px"></div>
-        <button class="btn-gold" style="width:100%" onclick="doRegister()">Criar Conta →</button>
-        <p style="text-align:center;margin-top:16px;font-size:12px;color:var(--muted)">
-          Já tem conta? <a href="#" onclick="switchAuth('login')" style="color:var(--gold);text-decoration:none">Entrar</a>
-        </p>
+        <div id="adminLoginError" class="form-error" style="margin-bottom:12px"></div>
+        <button onclick="doAdminLogin()" style="width:100%;background:transparent;border:1px solid rgba(255,255,255,0.1);color:var(--muted);font-family:'Rajdhani';font-weight:600;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;padding:11px;border-radius:8px;cursor:pointer;transition:all .2s;" onmouseover="this.style.borderColor='rgba(255,215,0,0.3)';this.style.color='var(--gold)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.1)';this.style.color='var(--muted)'">Entrar →</button>
       </div>
+
     </div>
   </div>
 </div>
@@ -863,6 +892,9 @@ import {
 import {
   getStorage, ref as storageRef, uploadString, getDownloadURL
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+import {
+  getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDQ0Mi3_qui_Mmz9zpeUsXEHFM55A4mHTw",
@@ -878,6 +910,7 @@ const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
+const auth = getAuth(app);
 
 // ===================== STATE =====================
 let state = {
@@ -893,7 +926,13 @@ let state = {
 
 // ===================== FIRESTORE HELPERS =====================
 async function loadAll() {
-  showLoadingOverlay(true);
+  showLoadingOverlay('loading');
+
+  // Timeout de segurança: se o Firebase travar, mostra erro após 8s
+  const timeout = setTimeout(() => {
+    showLoadingOverlay('error');
+  }, 8000);
+
   try {
     // Users
     const usersSnap = await getDocs(collection(db, 'users'));
@@ -925,6 +964,9 @@ async function loadAll() {
       await setDoc(doc(db, 'config', 'main'), { evalOpen: true });
     }
 
+    clearTimeout(timeout);
+    showLoadingOverlay('hidden');
+
     // Restore session
     const savedUser = sessionStorage.getItem('ccl_currentUser');
     if (savedUser) {
@@ -940,24 +982,59 @@ async function loadAll() {
     }
 
   } catch(err) {
+    clearTimeout(timeout);
     console.error('Firestore load error:', err);
-    showToast('⚠️ Erro ao conectar com o banco de dados.', 'error');
+    showLoadingOverlay('error');
   }
-  showLoadingOverlay(false);
 }
 
-function showLoadingOverlay(show) {
+function showLoadingOverlay(mode) {
   let el = document.getElementById('loadingOverlay');
   if (!el) {
     el = document.createElement('div');
     el.id = 'loadingOverlay';
-    el.style.cssText = 'position:fixed;inset:0;background:rgba(7,7,16,0.92);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px';
-    el.innerHTML = `<div style="width:40px;height:40px;border:3px solid rgba(255,215,0,0.2);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite"></div>
-    <div style="font-family:'Rajdhani';font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--muted)">Carregando...</div>
-    <style>@keyframes spin{to{transform:rotate(360deg)}}</style>`;
+    el.style.cssText = 'position:fixed;inset:0;background:#070710;z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center';
     document.body.appendChild(el);
   }
-  el.style.display = show ? 'flex' : 'none';
+
+  if (mode === 'hidden') {
+    el.style.display = 'none';
+    return;
+  }
+
+  el.style.display = 'flex';
+
+  if (mode === 'loading') {
+    el.innerHTML = `
+      <div style="width:44px;height:44px;border:3px solid rgba(255,215,0,0.15);border-top-color:#FFD700;border-radius:50%;animation:spin .8s linear infinite"></div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:13px;letter-spacing:2px;text-transform:uppercase;color:#6B6B8A">Carregando...</div>
+      <style>@keyframes spin{to{transform:rotate(360deg)}}</style>`;
+  }
+
+  if (mode === 'error') {
+    el.innerHTML = `
+      <div style="font-size:48px;margin-bottom:8px">🔥</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:2px;color:#FFD700;margin-bottom:8px">Erro de Conexão</div>
+      <div style="font-size:13px;color:#6B6B8A;max-width:380px;line-height:1.7;margin-bottom:24px">
+        O Firebase não está aceitando conexões.<br>
+        <strong style="color:#E8E8F0">Verifique as Regras do Firestore:</strong><br><br>
+        No <a href="https://console.firebase.google.com" target="_blank" style="color:#FFD700">Firebase Console</a> →
+        Firestore → Regras → cole o código abaixo e publique:
+      </div>
+      <div style="background:#111122;border:1px solid rgba(255,215,0,0.2);border-radius:10px;padding:16px;font-family:monospace;font-size:12px;color:#E8E8F0;text-align:left;max-width:420px;width:100%;line-height:1.8">
+        rules_version = '2';<br>
+        service cloud.firestore.default_database {<br>
+        &nbsp;&nbsp;match /databases/{database}/documents {<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;match /{document=**} {<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;allow read, write: if true;<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;}<br>
+        &nbsp;&nbsp;}<br>
+        }
+      </div>
+      <button onclick="location.reload()" style="margin-top:24px;background:linear-gradient(135deg,#B8860B,#FFD700);color:#000;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:14px;letter-spacing:2px;text-transform:uppercase;padding:12px 32px;border:none;border-radius:8px;cursor:pointer">
+        Tentar Novamente
+      </button>`;
+  }
 }
 
 async function saveUser(user) {
@@ -1003,6 +1080,57 @@ function switchAuth(mode) {
   document.getElementById('toggleLogin').classList.toggle('active', mode==='login');
   document.getElementById('toggleReg').classList.toggle('active', mode==='register');
 }
+
+function switchAuthTab(tab) {
+  document.getElementById('authJogador').style.display = tab==='jogador' ? 'block' : 'none';
+  document.getElementById('authAdmin').style.display = tab==='admin' ? 'block' : 'none';
+  document.getElementById('tabJogador').classList.toggle('active', tab==='jogador');
+  document.getElementById('tabAdmin').classList.toggle('active', tab==='admin');
+  // clear errors
+  document.getElementById('adminLoginError').textContent = '';
+}
+window.switchAuthTab = switchAuthTab;
+
+async function doAdminLogin() {
+  const email = document.getElementById('adminEmail').value.trim();
+  const password = document.getElementById('adminPassword').value;
+  const errEl = document.getElementById('adminLoginError');
+  errEl.textContent = '';
+
+  if (!email || !password) { errEl.textContent = 'Preencha e-mail e senha.'; return; }
+
+  const btnEl = errEl.previousElementSibling;
+  errEl.textContent = '';
+
+  try {
+    const credential = await signInWithEmailAndPassword(auth, email, password);
+    const fireUser = credential.user;
+
+    // Mark as admin in state
+    const adminUser = {
+      id: 'firebase_' + fireUser.uid,
+      username: 'admin',
+      name: 'Administrador',
+      email: fireUser.email,
+      isAdmin: true
+    };
+    state.currentUser = adminUser;
+    sessionStorage.setItem('ccl_currentUser', JSON.stringify(adminUser));
+    setupNav();
+    showPage('admin');
+    showToast('✅ Bem-vindo, Admin!', 'success');
+  } catch(err) {
+    const msgs = {
+      'auth/user-not-found': 'E-mail não encontrado.',
+      'auth/wrong-password': 'Senha incorreta.',
+      'auth/invalid-email': 'E-mail inválido.',
+      'auth/invalid-credential': 'E-mail ou senha incorretos.',
+      'auth/too-many-requests': 'Muitas tentativas. Aguarde um momento.',
+    };
+    errEl.textContent = msgs[err.code] || 'Erro ao entrar. Verifique suas credenciais.';
+  }
+}
+window.doAdminLogin = doAdminLogin;
 
 async function doLogin() {
   const user = document.getElementById('loginUser').value.trim();
@@ -1053,6 +1181,10 @@ function loginUser(user) {
 }
 
 function logout() {
+  // Sign out from Firebase Auth if admin
+  if (state.currentUser && state.currentUser.isAdmin) {
+    signOut(auth).catch(() => {});
+  }
   state.currentUser = null;
   sessionStorage.removeItem('ccl_currentUser');
   document.getElementById('mainNav').style.display = 'none';
