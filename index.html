@@ -566,21 +566,84 @@
   .alert-info { background:rgba(79,195,247,0.08); border:1px solid rgba(79,195,247,0.2); color:var(--blue); }
   .alert-success { background:rgba(0,230,118,0.08); border:1px solid rgba(0,230,118,0.2); color:var(--green); }
 
-  /* RESPONSIVE */
+  /* ========== BOTTOM NAV (mobile) ========== */
+  .bottom-nav {
+    display:none;
+    position:fixed; bottom:0; left:0; right:0; z-index:200;
+    background:rgba(7,7,16,0.97);
+    backdrop-filter:blur(24px);
+    border-top:1px solid rgba(255,215,0,0.12);
+    padding:6px 0 env(safe-area-inset-bottom, 6px);
+  }
+  .bottom-nav-inner {
+    display:flex; align-items:stretch; justify-content:space-around;
+  }
+  .bnav-btn {
+    flex:1; background:none; border:none; color:var(--muted);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:3px; padding:6px 4px; cursor:pointer; transition:color .2s;
+    font-family:'Rajdhani'; font-weight:700; font-size:9px;
+    letter-spacing:1px; text-transform:uppercase; min-width:0;
+  }
+  .bnav-btn .bnav-icon { font-size:20px; line-height:1; }
+  .bnav-btn.active { color:var(--gold); }
+  .bnav-btn.active .bnav-icon { filter:drop-shadow(0 0 6px rgba(255,215,0,0.6)); }
+
+  /* ========== RESPONSIVE ========== */
   @media(max-width:640px){
-    .players-grid { grid-template-columns:repeat(2,1fr); padding:16px; gap:14px; }
-    .awards-grid { grid-template-columns:repeat(2,1fr); padding:16px; gap:12px; }
-    .dash-grid { grid-template-columns:1fr; padding:16px; }
-    nav { padding:0 12px; }
+    /* Top nav — logo + avatar only, no links */
+    nav { padding:0 16px; }
     .nav-links { display:none; }
-    .modal { padding:24px; }
-    .eval-page, .admin-page, .hall-page { padding:20px 14px; }
+
+    /* Push page content above bottom nav */
+    .page.active { padding-bottom:72px; }
+
+    /* Show bottom nav */
+    .bottom-nav { display:block; }
+
+    /* Grids */
+    .players-grid { grid-template-columns:repeat(2,1fr); padding:12px; gap:12px; }
+    .awards-grid { grid-template-columns:repeat(2,1fr); padding:12px; gap:10px; }
+    .dash-grid { grid-template-columns:1fr; padding:14px; }
+
+    /* Modal */
+    .modal { padding:20px 16px; border-radius:16px 16px 0 0; max-height:92vh; }
+    .modal-overlay { align-items:flex-end; padding:0; }
+
+    /* Pages */
+    .eval-page, .admin-page, .hall-page { padding:16px 12px; }
+
+    /* Hero */
+    .hero { min-height:calc(100vh - 64px); }
+    .hero-title { font-size:clamp(52px,18vw,90px); }
+
+    /* Auth */
+    .auth-page { padding:16px; align-items:flex-start; padding-top:24px; }
+    .auth-box { padding:28px 20px; }
+
+    /* Podium */
+    .podium { gap:8px; }
+    .podium-base { width:72px; }
+
+    /* Dashboard cards span full */
+    .dash-card[style*="grid-column:span 2"] { grid-column: span 1 !important; }
+
+    /* Admin list actions stack */
+    .player-list-actions { flex-direction:column; gap:4px; }
+    .btn-edit, .btn-del { font-size:11px; padding:5px 10px; }
+
+    /* Rank table smaller */
+    .rank-table th, .rank-table td { padding:8px 10px; font-size:12px; }
+
+    /* Award card compact */
+    .award-card { padding:16px 12px; }
+    .award-icon { font-size:32px; }
   }
 </style>
 </head>
 <body>
 
-<!-- NAV -->
+<!-- TOP NAV -->
 <nav id="mainNav" style="display:none">
   <span class="nav-logo">⚽ CABANA CUP</span>
   <div class="nav-links">
@@ -596,6 +659,30 @@
     <div class="nav-avatar" id="navAvatar" onclick="logout()">?</div>
   </div>
 </nav>
+
+<!-- BOTTOM NAV (mobile) -->
+<div class="bottom-nav" id="bottomNav" style="display:none">
+  <div class="bottom-nav-inner">
+    <button class="bnav-btn active" id="bnav-dashboard" onclick="showPage('dashboard')">
+      <span class="bnav-icon">🏠</span>Home
+    </button>
+    <button class="bnav-btn" id="bnav-players" onclick="showPage('players')">
+      <span class="bnav-icon">🃏</span>Cards
+    </button>
+    <button class="bnav-btn" id="bnav-avaliar" onclick="showPage('avaliar')">
+      <span class="bnav-icon">⭐</span>Avaliar
+    </button>
+    <button class="bnav-btn" id="bnav-hall" onclick="showPage('hall')">
+      <span class="bnav-icon">🏆</span>Hall
+    </button>
+    <button class="bnav-btn" id="bnav-premios" onclick="showPage('premios')">
+      <span class="bnav-icon">🎖️</span>Prêmios
+    </button>
+    <button class="bnav-btn admin-only" id="bnav-admin" style="display:none" onclick="showPage('admin')">
+      <span class="bnav-icon">⚙️</span>Admin
+    </button>
+  </div>
+</div>
 
 <!-- ===================== TELA INICIAL ===================== -->
 <div id="page-landing" class="page active">
@@ -1196,13 +1283,13 @@ function loginUser(user) {
 }
 
 function logout() {
-  // Sign out from Firebase Auth if admin
   if (state.currentUser && state.currentUser.isAdmin) {
     signOut(auth).catch(() => {});
   }
   state.currentUser = null;
   sessionStorage.removeItem('ccl_currentUser');
   document.getElementById('mainNav').style.display = 'none';
+  document.getElementById('bottomNav').style.display = 'none';
   showPage('landing');
 }
 
@@ -1212,6 +1299,8 @@ function setupNav() {
   document.getElementById('navAvatar').textContent = state.currentUser.name.charAt(0).toUpperCase();
   const adminBtns = document.querySelectorAll('.admin-only');
   adminBtns.forEach(b => b.style.display = state.currentUser.isAdmin ? 'block' : 'none');
+  // Show bottom nav on mobile
+  document.getElementById('bottomNav').style.display = 'block';
 }
 
 // ===================== NAVIGATION =====================
@@ -1222,6 +1311,12 @@ function showPage(name) {
     b.classList.toggle('active', b.textContent.toLowerCase().includes(name) ||
       (name==='dashboard' && b.textContent==='Dashboard'));
   });
+  // Sync bottom nav
+  document.querySelectorAll('.bnav-btn').forEach(b => {
+    b.classList.toggle('active', b.id === 'bnav-' + name);
+  });
+  // Scroll to top on page change (mobile)
+  window.scrollTo(0, 0);
 
   if (name==='players') renderPlayers();
   if (name==='avaliar') renderEvalPage();
