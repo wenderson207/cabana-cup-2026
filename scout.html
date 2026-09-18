@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Scout ao Vivo — Cabana Cup 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #FFD700; --gold-dark: #B8860B; --gold-light: #FFF176;
+    --bg: #070710; --bg2: #0D0D1A; --bg3: #141428;
+    --card: #111122; --card2: #1A1A32;
+    --text: #E8E8F0; --muted: #6B6B8A;
+    --green: #00E676; --green-dark: #0f3d2a;
+    --red: #FF4444; --red-dark: #3d1414;
+    --blue: #4FC3F7;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text);
+    min-height: 100vh; padding-bottom: 40px;
+  }
+  .topbar {
+    position: sticky; top: 0; z-index: 50;
+    background: linear-gradient(180deg, #0b0b18 0%, rgba(11,11,24,0.96) 100%);
+    border-bottom: 1px solid rgba(255,215,0,0.15);
+    backdrop-filter: blur(8px);
+    padding: 12px 14px 10px;
+  }
+  .topbar-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-badge {
+    font-family: 'Bebas Neue'; font-size: 26px; line-height: 1;
+    background: linear-gradient(135deg, var(--gold-light), var(--gold), var(--gold-dark));
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    letter-spacing: 1px;
+  }
+  .brand-sub { font-family: 'Rajdhani'; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+  .live-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background: var(--green); box-shadow:0 0 8px var(--green); animation: pulse 1.4s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+  .scout-id {
+    display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted);
+  }
+  .scout-id select {
+    background: var(--card2); color: var(--gold); border: 1px solid rgba(255,215,0,0.25);
+    border-radius: 7px; padding: 5px 8px; font-family: 'Rajdhani'; font-weight: 700; font-size: 12px;
+  }
+  .controls { display: flex; gap: 8px; margin-top: 10px; }
+  .search {
+    flex: 1; background: var(--card2); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 9px; padding: 9px 12px; color: var(--text); font-size: 14px; font-family: 'Inter';
+  }
+  .search::placeholder { color: var(--muted); }
+  .chips { display: flex; gap: 7px; overflow-x: auto; padding: 10px 2px 2px; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    flex-shrink: 0; background: var(--card2); border: 1px solid rgba(255,255,255,0.08);
+    color: var(--muted); border-radius: 20px; padding: 7px 14px; font-size: 12px; font-weight: 600;
+    font-family: 'Rajdhani'; letter-spacing: .5px; text-transform: uppercase; cursor: pointer; transition: all .15s; white-space: nowrap;
+  }
+  .chip.active { background: var(--gold); color: #1a1400; border-color: var(--gold); }
+
+  .wrap { padding: 14px; }
+  .grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  @media (min-width: 720px) { .grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); } }
+
+  .pcard {
+    background: linear-gradient(160deg, var(--card) 0%, #0d0d1c 100%);
+    border: 1px solid rgba(255,255,255,0.07); border-radius: 15px; padding: 13px 13px 11px;
+  }
+  .pcard-head { display: flex; align-items: center; gap: 11px; margin-bottom: 11px; }
+  .camisa {
+    width: 42px; height: 42px; flex-shrink: 0; border-radius: 11px;
+    background: var(--bg3); border: 1px solid rgba(255,215,0,0.2);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Bebas Neue'; font-size: 24px; color: var(--gold); line-height: 1;
+  }
+  .pinfo { flex: 1; min-width: 0; }
+  .pnome { font-weight: 700; font-size: 15px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ptime { font-size: 11px; color: var(--muted); font-family: 'Rajdhani'; font-weight: 600; letter-spacing: .5px; text-transform: uppercase; margin-top: 1px; }
+  .score {
+    text-align: center; min-width: 52px; padding-left: 6px;
+  }
+  .score-val { font-family: 'Bebas Neue'; font-size: 34px; line-height: 0.9; }
+  .score-lbl { font-size: 8px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; font-family: 'Rajdhani'; font-weight: 700; }
+  .score.pos .score-val { color: var(--green); }
+  .score.neg .score-val { color: var(--red); }
+  .score.zero .score-val { color: var(--muted); }
+
+  .btns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .ebtn {
+    position: relative; border: none; border-radius: 10px; padding: 9px 2px 7px;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    font-family: 'Rajdhani'; font-weight: 700; cursor: pointer; transition: transform .06s, filter .15s;
+    min-height: 56px; user-select: none;
+  }
+  .ebtn:active { transform: scale(0.92); filter: brightness(1.25); }
+  .ebtn .ico { font-size: 17px; line-height: 1; }
+  .ebtn .lbl { font-size: 10px; letter-spacing: .3px; line-height: 1; text-align: center; }
+  .ebtn.pos { background: linear-gradient(160deg, #123a29, #0c2a1d); color: #b9ffd9; border: 1px solid rgba(0,230,118,0.28); }
+  .ebtn.neg { background: linear-gradient(160deg, #3a1414, #2a0d0d); color: #ffc2c2; border: 1px solid rgba(255,68,68,0.28); }
+  .ecount {
+    position: absolute; top: -6px; right: -4px; min-width: 18px; height: 18px; padding: 0 4px;
+    border-radius: 9px; font-family: 'Inter'; font-weight: 700; font-size: 11px;
+    display: flex; align-items: center; justify-content: center; color: #fff;
+  }
+  .ebtn.pos .ecount { background: var(--green); color: #06301f; }
+  .ebtn.neg .ecount { background: var(--red); color: #380808; }
+  .ecount.hidden { display: none; }
+
+  .pfoot { display: flex; align-items: center; justify-content: space-between; margin-top: 9px; }
+  .undo {
+    background: transparent; border: 1px solid rgba(255,255,255,0.12); color: var(--muted);
+    border-radius: 8px; padding: 6px 12px; font-size: 11px; font-family: 'Rajdhani'; font-weight: 700;
+    letter-spacing: .5px; text-transform: uppercase; cursor: pointer; transition: all .15s;
+  }
+  .undo:active { border-color: var(--gold); color: var(--gold); }
+  .undo:disabled { opacity: .3; cursor: default; }
+  .events-total { font-size: 10px; color: var(--muted); font-family: 'Rajdhani'; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
+
+  .empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+  .empty .ic { font-size: 40px; margin-bottom: 10px; }
+
+  .adminbar { display: flex; justify-content: center; margin-top: 22px; }
+  .btn-reset {
+    background: transparent; border: 1px solid rgba(255,68,68,0.3); color: rgba(255,68,68,0.7);
+    border-radius: 9px; padding: 9px 18px; font-family: 'Rajdhani'; font-weight: 700; font-size: 11px;
+    letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer;
+  }
+  .btn-reset:active { background: rgba(255,68,68,0.08); }
+
+  .toast {
+    position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--card2); border: 1px solid rgba(255,215,0,0.25); color: var(--text);
+    padding: 11px 20px; border-radius: 10px; font-size: 13px; font-weight: 600;
+    opacity: 0; transition: all .25s; z-index: 100; pointer-events: none; max-width: 90vw; text-align:center;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .loading { text-align: center; padding: 80px 20px; color: var(--muted); }
+  .spinner { width: 34px; height: 34px; border: 3px solid rgba(255,215,0,0.2); border-top-color: var(--gold); border-radius: 50%; margin: 0 auto 14px; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-row">
+    <div class="brand">
+      <div class="brand-badge">SCOUT AO VIVO</div>
+    </div>
+    <div class="scout-id">
+      <span class="live-dot"></span>
+      <span>Você é:</span>
+      <select id="scoutSelect">
+        <option value="Scout 1">Scout 1</option>
+        <option value="Scout 2">Scout 2</option>
+        <option value="Mesa">Mesa</option>
+      </select>
+    </div>
+  </div>
+  <div class="brand-sub" style="margin-top:4px">⚽ Cabana Cup 2026 · marcação em tempo real</div>
+  <div class="controls">
+    <input class="search" id="search" placeholder="🔎 Buscar jogador ou nº..." autocomplete="off">
+  </div>
+  <div class="chips" id="chips"></div>
+</div>
+
+<div class="wrap">
+  <div id="container">
+    <div class="loading"><div class="spinner"></div>Carregando jogadores...</div>
+  </div>
+  <div class="adminbar" id="adminbar" style="display:none">
+    <button class="btn-reset" onclick="resetMatch()">🗑️ Zerar partida</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import {
+  getFirestore, collection, doc, setDoc, onSnapshot, increment, serverTimestamp, getDocs, writeBatch
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDQ0Mi3_qui_Mmz9zpeUsXEHFM55A4mHTw",
+  authDomain: "cabana-cup.firebaseapp.com",
+  projectId: "cabana-cup",
+  storageBucket: "cabana-cup.firebasestorage.app",
+  messagingSenderId: "922945955777",
+  appId: "1:922945955777:web:80553a8ff30722a74ef140",
+  measurementId: "G-RTMFNH477N"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// ===== Eventos e pesos =====
+const EVENTS = [
+  { key:'gol',          label:'Gol',        val:+1, ico:'⚽', sign:'pos' },
+  { key:'assist',       label:'Assist.',    val:+1, ico:'🅰️', sign:'pos' },
+  { key:'chute',        label:'Chute',      val:+1, ico:'🎯', sign:'pos' },
+  { key:'desarme',      label:'Desarme',    val:+1, ico:'🛡️', sign:'pos' },
+  { key:'defesa',       label:'Defesa',     val:+1, ico:'🧤', sign:'pos' },
+  { key:'falta',        label:'Falta',      val:-1, ico:'🚫', sign:'neg' },
+  { key:'passe_errado', label:'Passe err.', val:-1, ico:'❌', sign:'neg' },
+  { key:'tomou_gol',    label:'Tomou gol',  val:-1, ico:'😖', sign:'neg' },
+];
+
+let players = [];          // {id, nome, time, camisa, posicao}
+let scoutMap = {};         // {playerId: {gol:n,...}}
+let currentTeam = 'ALL';
+let searchTerm = '';
+const undoStack = [];      // ações deste dispositivo: {pid, key}
+
+const scoutSelect = document.getElementById('scoutSelect');
+scoutSelect.value = localStorage.getItem('cc_scout') || 'Scout 1';
+scoutSelect.onchange = () => localStorage.setItem('cc_scout', scoutSelect.value);
+
+// ===== Carrega jogadores (tempo real) =====
+onSnapshot(collection(db, 'players'), snap => {
+  players = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .sort((a,b) => {
+      const ta = (a.time||'zzz').toLowerCase(), tb = (b.time||'zzz').toLowerCase();
+      if (ta !== tb) return ta < tb ? -1 : 1;
+      const ca = parseInt(a.camisa)||999, cb = parseInt(b.camisa)||999;
+      if (ca !== cb) return ca - cb;
+      return (a.nome||'').localeCompare(b.nome||'');
+    });
+  buildChips();
+  render();
+}, err => {
+  document.getElementById('container').innerHTML =
+    `<div class="empty"><div class="ic">⚠️</div>Erro ao carregar. Verifique a conexão.</div>`;
+  console.error(err);
+});
+
+// ===== Placar ao vivo (tempo real) =====
+onSnapshot(collection(db, 'scout'), snap => {
+  scoutMap = {};
+  snap.docs.forEach(d => { scoutMap[d.id] = d.data(); });
+  render();
+});
+
+// ===== Cálculo =====
+function scoreOf(pid) {
+  const s = scoutMap[pid] || {};
+  return EVENTS.reduce((acc, e) => acc + (s[e.key]||0) * e.val, 0);
+}
+function totalEvents(pid) {
+  const s = scoutMap[pid] || {};
+  return EVENTS.reduce((acc, e) => acc + (s[e.key]||0), 0);
+}
+
+// ===== Times (chips) =====
+function buildChips() {
+  const times = [...new Set(players.map(p => (p.time||'').trim()).filter(Boolean))].sort();
+  const chips = document.getElementById('chips');
+  let html = `<div class="chip ${currentTeam==='ALL'?'active':''}" data-team="ALL">Todos</div>`;
+  times.forEach(t => {
+    html += `<div class="chip ${currentTeam===t?'active':''}" data-team="${escapeAttr(t)}">${escapeHtml(t)}</div>`;
+  });
+  const semTime = players.some(p => !(p.time||'').trim());
+  if (semTime) html += `<div class="chip ${currentTeam==='NONE'?'active':''}" data-team="NONE">Sem time</div>`;
+  chips.innerHTML = html;
+  chips.querySelectorAll('.chip').forEach(c => {
+    c.onclick = () => { currentTeam = c.dataset.team; buildChips(); render(); };
+  });
+}
+
+// ===== Render =====
+function render() {
+  const container = document.getElementById('container');
+  let list = players;
+  if (currentTeam === 'NONE') list = list.filter(p => !(p.time||'').trim());
+  else if (currentTeam !== 'ALL') list = list.filter(p => (p.time||'').trim() === currentTeam);
+  if (searchTerm) {
+    const q = searchTerm.toLowerCase();
+    list = list.filter(p => (p.nome||'').toLowerCase().includes(q) || String(p.camisa||'').includes(q));
+  }
+
+  document.getElementById('adminbar').style.display = players.length ? 'flex' : 'none';
+
+  if (!players.length) {
+    container.innerHTML = `<div class="empty"><div class="ic">⚽</div>Nenhum jogador cadastrado ainda.</div>`;
+    return;
+  }
+  if (!list.length) {
+    container.innerHTML = `<div class="empty"><div class="ic">🔎</div>Nenhum jogador encontrado.</div>`;
+    return;
+  }
+
+  container.innerHTML = `<div class="grid">` + list.map(p => {
+    const s = scoutMap[p.id] || {};
+    const sc = scoreOf(p.id);
+    const scls = sc > 0 ? 'pos' : (sc < 0 ? 'neg' : 'zero');
+    const scoreTxt = sc > 0 ? '+' + sc : String(sc);
+    const btns = EVENTS.map(e => {
+      const c = s[e.key] || 0;
+      return `<button class="ebtn ${e.sign}" data-pid="${p.id}" data-key="${e.key}">
+        <span class="ecount ${c>0?'':'hidden'}">${c}</span>
+        <span class="ico">${e.ico}</span>
+        <span class="lbl">${e.label}</span>
+      </button>`;
+    }).join('');
+    const canUndo = undoStack.some(a => a.pid === p.id);
+    return `<div class="pcard">
+      <div class="pcard-head">
+        <div class="camisa">${p.camisa ? p.camisa : '—'}</div>
+        <div class="pinfo">
+          <div class="pnome">${escapeHtml(p.nome||'Sem nome')}</div>
+          <div class="ptime">${escapeHtml(p.time || 'Sem time')}${p.posicao ? ' · ' + escapeHtml(p.posicao) : ''}</div>
+        </div>
+        <div class="score ${scls}">
+          <div class="score-val">${scoreTxt}</div>
+          <div class="score-lbl">pontos</div>
+        </div>
+      </div>
+      <div class="btns">${btns}</div>
+      <div class="pfoot">
+        <button class="undo" data-pid="${p.id}" ${canUndo?'':'disabled'}>↩ Desfazer</button>
+        <span class="events-total">${totalEvents(p.id)} lançamentos</span>
+      </div>
+    </div>`;
+  }).join('') + `</div>`;
+
+  container.querySelectorAll('.ebtn').forEach(b => {
+    b.onclick = () => bump(b.dataset.pid, b.dataset.key, +1, true);
+  });
+  container.querySelectorAll('.undo').forEach(b => {
+    b.onclick = () => undo(b.dataset.pid);
+  });
+}
+
+// ===== Ações =====
+async function bump(pid, key, delta, pushUndo) {
+  try {
+    await setDoc(doc(db, 'scout', pid), {
+      [key]: increment(delta),
+      updatedAt: serverTimestamp(),
+      lastBy: scoutSelect.value
+    }, { merge: true });
+    if (pushUndo) undoStack.push({ pid, key });
+  } catch(e) {
+    console.error(e);
+    toast('⚠️ Falha ao salvar. Tente de novo.');
+  }
+}
+
+async function undo(pid) {
+  // desfaz a última ação DESTE dispositivo para este jogador
+  let idx = -1;
+  for (let i = undoStack.length - 1; i >= 0; i--) { if (undoStack[i].pid === pid) { idx = i; break; } }
+  if (idx === -1) return;
+  const { key } = undoStack.splice(idx, 1)[0];
+  await bump(pid, key, -1, false);
+  const ev = EVENTS.find(e => e.key === key);
+  toast('↩ Desfeito: ' + (ev ? ev.label : key));
+}
+
+window.resetMatch = async function() {
+  if (!confirm('ZERAR todos os lançamentos desta partida?\nIsso apaga os pontos de scout de TODOS os jogadores e não pode ser desfeito.')) return;
+  if (!confirm('Tem certeza mesmo? Última confirmação.')) return;
+  try {
+    const snap = await getDocs(collection(db, 'scout'));
+    const batch = writeBatch(db);
+    snap.docs.forEach(d => {
+      const zero = { updatedAt: serverTimestamp(), lastBy: scoutSelect.value };
+      EVENTS.forEach(e => zero[e.key] = 0);
+      batch.set(doc(db, 'scout', d.id), zero, { merge: true });
+    });
+    await batch.commit();
+    undoStack.length = 0;
+    toast('🗑️ Partida zerada.');
+  } catch(e) {
+    console.error(e);
+    toast('⚠️ Erro ao zerar.');
+  }
+};
+
+// ===== Busca =====
+document.getElementById('search').addEventListener('input', e => {
+  searchTerm = e.target.value.trim();
+  render();
+});
+
+// ===== Utils =====
+let toastT;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastT);
+  toastT = setTimeout(() => el.classList.remove('show'), 1800);
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s){ return String(s).replace(/"/g,'&quot;'); }
+</script>
+</body>
+</html>
