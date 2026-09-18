@@ -761,23 +761,6 @@
           <label class="form-label">Telefone</label>
           <input class="form-input" id="regPhone" placeholder="(11) 99999-9999" type="tel">
         </div>
-        <div class="form-group">
-          <label class="form-label">Sua Posição</label>
-          <select class="form-input" id="regPosicao">
-            <option value="">Selecione...</option>
-            <option>GOL</option><option>FIX</option><option>ALA</option><option>PÍV</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Sua Foto (opcional)</label>
-          <div class="photo-upload" onclick="document.getElementById('regPhotoInput').click()">
-            <input type="file" id="regPhotoInput" accept="image/*" onchange="previewRegPhoto(event)">
-            <div id="regPhotoWrap">
-              <div class="photo-upload-icon">📷</div>
-              <div class="photo-upload-text">Clique para enviar foto</div>
-            </div>
-          </div>
-        </div>
         <div id="regError" class="form-error" style="margin-bottom:12px"></div>
         <button class="btn-gold" style="width:100%" onclick="doRegister()">Criar Conta →</button>
         <p style="text-align:center;margin-top:16px;font-size:12px;color:var(--muted)">
@@ -935,6 +918,14 @@
         <input class="form-input" id="pTime" placeholder="Flamengo">
       </div>
     </div>
+    <div class="form-group">
+      <label class="form-label" style="color:var(--gold)">🏟️ Time na PARTIDA — Cabana Cup (obrigatório)</label>
+      <select class="form-input" id="pEquipe">
+        <option value="">Selecione o lado que ele vai jogar...</option>
+        <option value="PFC">PFC</option>
+        <option value="LU">LU</option>
+      </select>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
       <div class="form-group">
         <label class="form-label">Posição</label>
@@ -1019,10 +1010,10 @@ let state = {
   users: [],
   players: [],
   evaluations: {}, // {userId: {playerId: {nota,comment,skills}}}
+  scout: {},       // {playerId: {gol,assist,chute,desarme,defesa,falta,passe_errado,tomou_gol}}
   evalOpen: true,
   editingPlayerId: null,
   editingPhotoData: null,
-  regPhotoData: null,
   currentEvalPlayerId: null,
 };
 
@@ -1057,6 +1048,11 @@ async function loadAll() {
     const evalsSnap = await getDocs(collection(db, 'evaluations'));
     state.evaluations = {};
     evalsSnap.docs.forEach(d => { state.evaluations[d.id] = d.data(); });
+
+    // Scout (pontuação ao vivo em campo)
+    const scoutSnap = await getDocs(collection(db, 'scout'));
+    state.scout = {};
+    scoutSnap.docs.forEach(d => { state.scout[d.id] = d.data(); });
 
     // Config
     const cfgSnap = await getDoc(doc(db, 'config', 'main'));
@@ -1276,10 +1272,7 @@ async function doRegister() {
   const errEl = document.getElementById('regError');
   errEl.textContent = '';
 
-  const posicao = document.getElementById('regPosicao').value;
-
-  if (!name || !user || !phone) { errEl.textContent = 'Preencha nome, usuário e telefone.'; return; }
-  if (!posicao) { errEl.textContent = 'Selecione sua posição.'; return; }
+  if (!name || !user || !phone) { errEl.textContent = 'Preencha todos os campos.'; return; }
 
   // Check uniqueness
   const usersSnap = await getDocs(collection(db, 'users'));
@@ -1288,47 +1281,11 @@ async function doRegister() {
   if (state.users.find(u => u.username === user)) {
     errEl.textContent = 'Nome de usuário já existe.'; return;
   }
-
-  errEl.textContent = 'Criando sua conta...';
-  const ts = Date.now();
-  const uid = 'u_' + ts;
-  const pid = 'p_' + ts;
-
-  // Foto (comprimida) — opcional
-  let photoUrl = null;
-  if (state.regPhotoData && state.regPhotoData.startsWith('data:')) {
-    photoUrl = await uploadPhoto(state.regPhotoData, pid);
-  }
-
-  // MODO CARTOLA: quem se cadastra JÁ VIRA um jogador da lista, ligado à conta.
-  const newPlayer = { id: pid, nome: name, posicao, photo: photoUrl, cidade: '', time: '', idade: null, camisa: null, gols: 0, assist: 0, userId: uid };
-  const newUser = { id: uid, username: user, name, phone, isAdmin: false, playerId: pid };
-
-  try {
-    await savePlayer(newPlayer);
-    await saveUser(newUser);
-  } catch(e) {
-    errEl.textContent = 'Erro ao criar conta. Tente novamente.'; console.error(e); return;
-  }
-
-  state.players.push(newPlayer);
+  const newUser = { id: 'u_' + Date.now(), username: user, name, phone, isAdmin: false };
+  await saveUser(newUser);
   state.users.push(newUser);
-  state.regPhotoData = null;
-  document.getElementById('regPhotoWrap').innerHTML = '<div class="photo-upload-icon">📷</div><div class="photo-upload-text">Clique para enviar foto</div>';
   loginUser(newUser);
   showToast('✅ Conta criada! Bem-vindo, ' + name, 'success');
-}
-
-window.previewRegPhoto = function(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    state.regPhotoData = e.target.result;
-    document.getElementById('regPhotoWrap').innerHTML =
-      `<img src="${e.target.result}" class="photo-preview"><div class="photo-upload-text">Clique para trocar</div>`;
-  };
-  reader.readAsDataURL(file);
 }
 
 function loginUser(user) {
@@ -1385,6 +1342,42 @@ function showPage(name) {
 window.showPage = showPage;
 
 // ===================== UTILITIES =====================
+// ===================== SCOUT (pontuação em campo) =====================
+const SCOUT_WEIGHTS = { gol:1, assist:1, chute:1, desarme:1, defesa:1, falta:-1, passe_errado:-1, tomou_gol:-1 };
+const SCOUT_DEFS = [
+  ['gol','⚽ Gols'],['assist','🅰️ Assistências'],['chute','🎯 Chutes a gol'],
+  ['desarme','🛡️ Desarmes'],['defesa','🧤 Defesas difíceis'],
+  ['falta','🚫 Faltas'],['passe_errado','❌ Passes errados'],['tomou_gol','😖 Gols sofridos']
+];
+// Peso de cada ponto de scout na nota final (mude só aqui pra calibrar):
+const SCOUT_WEIGHT = 1;
+
+function calcScout(player) {
+  const s = state.scout[player.id];
+  if (!s) return 0;
+  return Object.entries(SCOUT_WEIGHTS).reduce((acc,[k,w]) => acc + (s[k]||0)*w, 0);
+}
+function scoutCount(player, key) {
+  const s = state.scout[player.id];
+  return (s && typeof s[key] === 'number') ? s[key] : null;
+}
+// Nota final do Hall da Fama = média da galera (0 se ninguém avaliou) + pontos de scout
+function calcFinal(player) {
+  return (calcNota(player) ?? 0) + calcScout(player) * SCOUT_WEIGHT;
+}
+function calcFinalDisplay(player) {
+  const nota = calcNota(player), sc = calcScout(player);
+  if (nota === null && sc === 0) return null;
+  return Math.round(((nota ?? 0) + sc * SCOUT_WEIGHT) * 10) / 10;
+}
+
+// Selo do time da partida (PFC dourado / LU azul)
+function equipeTag(p) {
+  if (!p || !p.equipe) return '';
+  const color = p.equipe === 'PFC' ? 'var(--gold)' : (p.equipe === 'LU' ? 'var(--blue)' : 'var(--muted)');
+  return `<span style="display:inline-block;font-family:'Rajdhani';font-weight:700;font-size:10px;letter-spacing:1px;padding:2px 7px;border-radius:5px;background:${color};color:#0a0a14;line-height:1.5;vertical-align:middle">${p.equipe}</span>`;
+}
+
 function calcNota(player) {
   const allEvals = Object.values(state.evaluations);
   const pEvals = allEvals.map(u => u[player.id]).filter(Boolean);
@@ -1429,11 +1422,7 @@ function playerPhoto(p, size=80) {
 }
 
 function getSortedPlayers() {
-  return [...state.players].sort((a,b) => {
-    const na = calcNota(a) ?? -1;
-    const nb = calcNota(b) ?? -1;
-    return nb - na;
-  });
+  return [...state.players].sort((a,b) => calcFinal(b) - calcFinal(a));
 }
 
 function showToast(msg, type='') {
@@ -1450,7 +1439,7 @@ function updateDashboard() {
 
   const sorted = getSortedPlayers();
   const top = sorted[0];
-  const topNota = top ? calcNota(top) : null;
+  const topNota = top ? calcFinalDisplay(top) : null;
   if (top && topNota !== null) {
     document.getElementById('craqueBanner').style.display = 'flex';
     document.getElementById('craqueNome').textContent = top.nome;
@@ -1465,12 +1454,12 @@ function updateDashboard() {
     rankDiv.innerHTML = '<div class="empty-state" style="padding:30px"><div class="empty-icon">📊</div><div class="empty-text">Nenhum jogador cadastrado.</div></div>';
   } else {
     rankDiv.innerHTML = sorted.slice(0,5).map((p,i) => {
-      const nota = calcNota(p);
+      const nota = calcFinalDisplay(p);
       const medals = ['🥇','🥈','🥉','4️⃣','5️⃣'];
       return `<div style="display:flex;align-items:center;gap:12px;padding:10px;border-radius:8px;margin-bottom:8px;background:rgba(255,255,255,0.03)">
         <span style="font-size:18px;width:28px;text-align:center">${medals[i]}</span>
         ${playerPhoto(p,36)}
-        <div style="flex:1"><div style="font-weight:600;font-size:14px">${p.nome}</div><div style="font-size:11px;color:var(--muted)">${p.posicao}</div></div>
+        <div style="flex:1"><div style="font-weight:600;font-size:14px">${p.nome} ${equipeTag(p)}</div><div style="font-size:11px;color:var(--muted)">${p.posicao}</div></div>
         <div style="font-family:'Bebas Neue';font-size:22px;color:var(--gold)">${nota !== null ? nota : '—'}</div>
       </div>`;
     }).join('');
@@ -1519,19 +1508,20 @@ function renderPlayers() {
         <div style="text-align:right">
           ${p.camisa ? `<div style="font-family:'Bebas Neue';font-size:22px;color:rgba(255,215,0,0.5);line-height:1">#${p.camisa}</div>` : ''}
           <div style="font-size:11px;color:var(--muted)">${p.cidade || ''}</div>
+          ${state.scout[p.id] ? `<div style="font-size:11px;font-weight:700;font-family:'Rajdhani';letter-spacing:.5px;margin-top:3px;color:${calcScout(p)>=0?'var(--green)':'var(--red)'}">SCOUT ${calcScout(p)>=0?'+':''}${calcScout(p)}</div>` : ''}
         </div>
       </div>
       <div class="card-img-wrap">
         ${p.photo ? `<img src="${p.photo}" class="card-img">` : `<div class="card-img-placeholder">${getPlayerEmoji(p)}</div>`}
       </div>
       <div class="card-bottom">
-        <div class="card-name">${p.nome}</div>
+        <div class="card-name">${p.nome} ${equipeTag(p)}</div>
         <div class="card-skills-mini">
           <div class="skill-mini"><div class="skill-mini-val">${skills.chute||'—'}</div><div class="skill-mini-lbl">CHU</div></div>
           <div class="skill-mini"><div class="skill-mini-val">${skills.passe||'—'}</div><div class="skill-mini-lbl">PAS</div></div>
           <div class="skill-mini"><div class="skill-mini-val">${skills.velocidade||'—'}</div><div class="skill-mini-lbl">VEL</div></div>
-          <div class="skill-mini"><div class="skill-mini-val">${p.gols}</div><div class="skill-mini-lbl">GOL</div></div>
-          <div class="skill-mini"><div class="skill-mini-val">${p.assist}</div><div class="skill-mini-lbl">ASS</div></div>
+          <div class="skill-mini"><div class="skill-mini-val">${scoutCount(p,'gol') ?? p.gols}</div><div class="skill-mini-lbl">GOL</div></div>
+          <div class="skill-mini"><div class="skill-mini-val">${scoutCount(p,'assist') ?? p.assist}</div><div class="skill-mini-lbl">ASS</div></div>
           <div class="skill-mini"><div class="skill-mini-val">${skills.visao||'—'}</div><div class="skill-mini-lbl">VIS</div></div>
         </div>
       </div>
@@ -1544,6 +1534,8 @@ window.openDetail = function(pid) {
   const nota = calcNota(p);
   const { label, cls } = getClassification(nota);
   const skills = calcSkills(p);
+  const scPts = calcScout(p);
+  const scFinal = calcFinalDisplay(p);
   const allEvals = Object.values(state.evaluations);
   const pEvals = allEvals.map(u => u[p.id]).filter(Boolean);
   const skillDefs = [
@@ -1555,15 +1547,32 @@ window.openDetail = function(pid) {
     <div style="text-align:center;margin-bottom:24px">
       ${playerPhoto(p, 90)}
       <div style="font-family:'Bebas Neue';font-size:28px;letter-spacing:2px;margin-top:12px">${p.nome}</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:4px">${p.posicao}${p.camisa ? ' • #'+p.camisa : ''} • ${p.cidade} • ${p.time}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">${equipeTag(p)} <span style="vertical-align:middle">${p.posicao}${p.camisa ? ' • #'+p.camisa : ''}${p.cidade ? ' • '+p.cidade : ''}${p.time ? ' • torce ' + p.time : ''}</span></div>
       ${nota !== null ? `<div style="font-family:'Bebas Neue';font-size:56px;color:var(--gold);line-height:1;margin:8px 0">${nota}</div>
       <span class="card-badge ${cls}" style="position:static;display:inline-block">${label}</span>` : '<div style="color:var(--muted);margin-top:12px">Sem avaliações ainda</div>'}
     </div>
     <div style="display:flex;gap:16px;justify-content:center;margin-bottom:24px">
-      <div style="text-align:center"><div style="font-family:'Bebas Neue';font-size:28px;color:var(--gold)">${p.gols}</div><div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)">Gols</div></div>
-      <div style="text-align:center"><div style="font-family:'Bebas Neue';font-size:28px;color:var(--gold)">${p.assist}</div><div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)">Assists</div></div>
+      <div style="text-align:center"><div style="font-family:'Bebas Neue';font-size:28px;color:var(--gold)">${scoutCount(p,'gol') ?? p.gols}</div><div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)">Gols</div></div>
+      <div style="text-align:center"><div style="font-family:'Bebas Neue';font-size:28px;color:var(--gold)">${scoutCount(p,'assist') ?? p.assist}</div><div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)">Assists</div></div>
       <div style="text-align:center"><div style="font-family:'Bebas Neue';font-size:28px;color:var(--gold)">${pEvals.length}</div><div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)">Avaliações</div></div>
     </div>
+    ${state.scout[p.id] ? `
+    <div style="border-top:1px solid rgba(255,255,255,0.07);padding-top:16px;margin-bottom:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div class="eval-section-title" style="margin:0">📋 Scout da partida</div>
+        <div style="text-align:right">
+          <span style="font-family:'Bebas Neue';font-size:26px;line-height:1;color:${scPts>=0?'var(--green)':'var(--red)'}">${scPts>=0?'+':''}${scPts}</span>
+          <div style="font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">pts scout</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px 16px">
+        ${SCOUT_DEFS.map(([k,lbl])=>`<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted)"><span>${lbl}</span><span style="color:var(--text);font-weight:700">${state.scout[p.id][k]||0}</span></div>`).join('')}
+      </div>
+      <div style="text-align:center;margin-top:14px;padding-top:12px;border-top:1px dashed rgba(255,255,255,0.08)">
+        <span style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">Nota final (galera + scout): </span>
+        <span style="font-family:'Bebas Neue';font-size:22px;color:var(--gold)">${scFinal !== null ? scFinal : '—'}</span>
+      </div>
+    </div>` : ''}
     <div style="border-top:1px solid rgba(255,255,255,0.07);padding-top:20px">
       ${skillDefs.map(([sk, lbl]) => `
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
@@ -1723,11 +1732,12 @@ function renderHall() {
   const nums = ['2','1','3'];
   document.getElementById('hallPodium').innerHTML = order.map((p, i) => {
     if (!p) return '<div></div>';
-    const nota = calcNota(p);
+    const finalP = calcFinalDisplay(p);
     return `<div class="podium-item ${pos[i]}">
       <div style="font-size:28px">${medals[i]}</div>
-      <div class="podium-score">${nota !== null ? nota : '—'}</div>
+      <div class="podium-score">${finalP !== null ? finalP : '—'}</div>
       <div class="podium-name">${p.nome.split(' ')[0]}</div>
+      <div style="margin-top:3px">${equipeTag(p)}</div>
       <div class="podium-avatar">${p.photo ? `<img src="${p.photo}">` : getPlayerEmoji(p)}</div>
       <div class="podium-base">${nums[i]}</div>
     </div>`;
@@ -1735,15 +1745,16 @@ function renderHall() {
 
   document.getElementById('hallBody').innerHTML = sorted.slice(3).map((p, i) => {
     const nota = calcNota(p);
+    const finalP = calcFinalDisplay(p);
     const { label, cls } = getClassification(nota);
     return `<tr>
       <td class="rank-pos">${i+4}</td>
       <td><div style="display:flex;align-items:center;gap:10px">
         <div class="rank-avatar-sm">${p.photo ? `<img src="${p.photo}" style="width:100%;height:100%;object-fit:cover">` : getPlayerEmoji(p)}</div>
-        <span class="rank-name">${p.nome}</span>
+        <span class="rank-name">${p.nome}</span> ${equipeTag(p)}
       </div></td>
       <td style="color:var(--muted);font-size:13px">${p.posicao}</td>
-      <td class="rank-score">${nota !== null ? nota : '—'}</td>
+      <td class="rank-score">${finalP !== null ? finalP : '—'}</td>
       <td><span class="card-badge ${cls}" style="position:static;display:inline-block">${label}</span></td>
     </tr>`;
   }).join('');
@@ -1846,6 +1857,7 @@ window.openAddPlayer = function() {
   document.getElementById('modalPlayerTitle').textContent = 'Adicionar Jogador';
   ['pNome','pIdade','pCidade','pTime','pCamisa'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('pPosicao').value = '';
+  document.getElementById('pEquipe').value = '';
   document.getElementById('pGols').value = '0';
   document.getElementById('pAssist').value = '0';
   document.getElementById('photoPreviewWrap').innerHTML = '<div class="photo-upload-icon">📷</div><div class="photo-upload-text">Clique para enviar foto</div>';
@@ -1863,6 +1875,7 @@ window.editPlayer = function(pid) {
   document.getElementById('pIdade').value = p.idade;
   document.getElementById('pCidade').value = p.cidade;
   document.getElementById('pTime').value = p.time;
+  document.getElementById('pEquipe').value = p.equipe || '';
   document.getElementById('pPosicao').value = p.posicao;
   document.getElementById('pCamisa').value = p.camisa || '';
   document.getElementById('pGols').value = p.gols;
@@ -1892,13 +1905,14 @@ window.savePlayer = async function() {
   const idade = parseInt(document.getElementById('pIdade').value);
   const cidade = document.getElementById('pCidade').value.trim();
   const time = document.getElementById('pTime').value.trim();
+  const equipe = document.getElementById('pEquipe').value;
   const posicao = document.getElementById('pPosicao').value;
   const camisa = parseInt(document.getElementById('pCamisa').value) || null;
   const gols = parseInt(document.getElementById('pGols').value) || 0;
   const assist = parseInt(document.getElementById('pAssist').value) || 0;
   const errEl = document.getElementById('playerFormError');
 
-  if (!nome || !posicao) { errEl.textContent = 'Nome e posição são obrigatórios.'; return; }
+  if (!nome || !posicao || !equipe) { errEl.textContent = 'Nome, posição e time da partida (PFC/LU) são obrigatórios.'; return; }
 
   errEl.textContent = 'Salvando...';
   try {
@@ -1909,7 +1923,7 @@ window.savePlayer = async function() {
         photoUrl = await uploadPhoto(photoUrl, pid);
       }
       const p = state.players.find(x => x.id === pid);
-      Object.assign(p, { nome, idade, cidade, time, posicao, camisa, gols, assist, photo: photoUrl });
+      Object.assign(p, { nome, idade, cidade, time, equipe, posicao, camisa, gols, assist, photo: photoUrl });
       await savePlayer(p);
     } else {
       const pid = 'p_' + Date.now();
@@ -1917,7 +1931,7 @@ window.savePlayer = async function() {
       if (photoUrl && photoUrl.startsWith('data:')) {
         photoUrl = await uploadPhoto(photoUrl, pid);
       }
-      const newPlayer = { id: pid, nome, idade, cidade, time, posicao, camisa, gols, assist, photo: photoUrl };
+      const newPlayer = { id: pid, nome, idade, cidade, time, equipe, posicao, camisa, gols, assist, photo: photoUrl };
       state.players.push(newPlayer);
       await savePlayer(newPlayer);
     }
