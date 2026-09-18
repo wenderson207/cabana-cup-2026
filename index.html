@@ -939,15 +939,8 @@
         <input class="form-input" id="pCamisa" type="number" placeholder="10" min="1" max="99">
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-      <div class="form-group">
-        <label class="form-label">⚽ Gols na Partida</label>
-        <input class="form-input" id="pGols" type="number" value="0" min="0">
-      </div>
-      <div class="form-group">
-        <label class="form-label">🎯 Assistências</label>
-        <input class="form-input" id="pAssist" type="number" value="0" min="0">
-      </div>
+    <div style="background:rgba(0,230,118,0.08);border:1px solid rgba(0,230,118,0.2);border-radius:9px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:var(--muted)">
+      ⚽ Gols e assistências <strong style="color:var(--green)">não são preenchidos aqui</strong> — são contados automaticamente pelo Scout ao vivo durante a partida.
     </div>
     <div id="playerFormError" class="form-error" style="margin-bottom:12px"></div>
     <button class="btn-gold" style="width:100%" onclick="savePlayer()">Salvar Jogador</button>
@@ -1053,6 +1046,13 @@ async function loadAll() {
     const scoutSnap = await getDocs(collection(db, 'scout'));
     state.scout = {};
     scoutSnap.docs.forEach(d => { state.scout[d.id] = d.data(); });
+
+    // Atualização AO VIVO do scout durante o jogo (Hall da Fama, Prêmios, etc.)
+    onSnapshot(collection(db, 'scout'), snap => {
+      state.scout = {};
+      snap.docs.forEach(d => { state.scout[d.id] = d.data(); });
+      refreshScoutViews();
+    });
 
     // Config
     const cfgSnap = await getDoc(doc(db, 'config', 'main'));
@@ -1319,6 +1319,7 @@ function setupNav() {
 
 // ===================== NAVIGATION =====================
 function showPage(name) {
+  state.currentPage = name;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
   document.querySelectorAll('.nav-btn').forEach(b => {
@@ -1340,6 +1341,15 @@ function showPage(name) {
   if (name==='dashboard') updateDashboard();
 }
 window.showPage = showPage;
+
+// Re-renderiza a página atual quando o scout muda (atualização ao vivo)
+function refreshScoutViews() {
+  const pg = state.currentPage;
+  if (pg === 'players') renderPlayers();
+  else if (pg === 'hall') renderHall();
+  else if (pg === 'premios') renderPremios();
+  else if (pg === 'dashboard' && state.currentUser) updateDashboard();
+}
 
 // ===================== UTILITIES =====================
 // ===================== SCOUT (pontuação em campo) =====================
@@ -1519,8 +1529,8 @@ function renderPlayers() {
           <div class="skill-mini"><div class="skill-mini-val">${skills.chute||'—'}</div><div class="skill-mini-lbl">CHU</div></div>
           <div class="skill-mini"><div class="skill-mini-val">${skills.passe||'—'}</div><div class="skill-mini-lbl">PAS</div></div>
           <div class="skill-mini"><div class="skill-mini-val">${skills.velocidade||'—'}</div><div class="skill-mini-lbl">VEL</div></div>
-          <div class="skill-mini"><div class="skill-mini-val">${scoutCount(p,'gol') ?? p.gols}</div><div class="skill-mini-lbl">GOL</div></div>
-          <div class="skill-mini"><div class="skill-mini-val">${scoutCount(p,'assist') ?? p.assist}</div><div class="skill-mini-lbl">ASS</div></div>
+          <div class="skill-mini"><div class="skill-mini-val">${scoutCount(p,'gol') ?? p.gols ?? 0}</div><div class="skill-mini-lbl">GOL</div></div>
+          <div class="skill-mini"><div class="skill-mini-val">${scoutCount(p,'assist') ?? p.assist ?? 0}</div><div class="skill-mini-lbl">ASS</div></div>
           <div class="skill-mini"><div class="skill-mini-val">${skills.visao||'—'}</div><div class="skill-mini-lbl">VIS</div></div>
         </div>
       </div>
@@ -1551,8 +1561,8 @@ window.openDetail = function(pid) {
       <span class="card-badge ${cls}" style="position:static;display:inline-block">${label}</span>` : '<div style="color:var(--muted);margin-top:12px">Sem avaliações ainda</div>'}
     </div>
     <div style="display:flex;gap:16px;justify-content:center;margin-bottom:24px">
-      <div style="text-align:center"><div style="font-family:'Bebas Neue';font-size:28px;color:var(--gold)">${scoutCount(p,'gol') ?? p.gols}</div><div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)">Gols</div></div>
-      <div style="text-align:center"><div style="font-family:'Bebas Neue';font-size:28px;color:var(--gold)">${scoutCount(p,'assist') ?? p.assist}</div><div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)">Assists</div></div>
+      <div style="text-align:center"><div style="font-family:'Bebas Neue';font-size:28px;color:var(--gold)">${scoutCount(p,'gol') ?? p.gols ?? 0}</div><div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)">Gols</div></div>
+      <div style="text-align:center"><div style="font-family:'Bebas Neue';font-size:28px;color:var(--gold)">${scoutCount(p,'assist') ?? p.assist ?? 0}</div><div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)">Assists</div></div>
       <div style="text-align:center"><div style="font-family:'Bebas Neue';font-size:28px;color:var(--gold)">${pEvals.length}</div><div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)">Avaliações</div></div>
     </div>
     ${state.scout[p.id] ? `
@@ -1770,10 +1780,10 @@ function renderPremios() {
   }
   function getSkillBest(sk) { return getBestBy(p => calcSkills(p)[sk] || 0); }
 
-  const craque = sorted[0] ? { player: sorted[0], val: calcNota(sorted[0]) } : null;
+  const craque = sorted[0] ? { player: sorted[0], val: calcFinalDisplay(sorted[0]) } : null;
   const goat = getBestBy(p => calcNota(p) ?? -1);
-  const artilheiro = getBestBy(p => p.gols);
-  const garcom = getBestBy(p => p.assist);
+  const artilheiro = getBestBy(p => scoutCount(p,'gol') ?? p.gols ?? 0);
+  const garcom = getBestBy(p => scoutCount(p,'assist') ?? p.assist ?? 0);
   const muralha = getSkillBest('marcacao');
   const prof = getSkillBest('visao');
   const zidane = getSkillBest('passe');
@@ -1857,8 +1867,6 @@ window.openAddPlayer = function() {
   ['pNome','pIdade','pCidade','pTime','pCamisa'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('pPosicao').value = '';
   document.getElementById('pEquipe').value = '';
-  document.getElementById('pGols').value = '0';
-  document.getElementById('pAssist').value = '0';
   document.getElementById('photoPreviewWrap').innerHTML = '<div class="photo-upload-icon">📷</div><div class="photo-upload-text">Clique para enviar foto</div>';
   document.getElementById('playerFormError').textContent = '';
   openModal('modalPlayer');
@@ -1877,8 +1885,6 @@ window.editPlayer = function(pid) {
   document.getElementById('pEquipe').value = p.equipe || '';
   document.getElementById('pPosicao').value = p.posicao;
   document.getElementById('pCamisa').value = p.camisa || '';
-  document.getElementById('pGols').value = p.gols;
-  document.getElementById('pAssist').value = p.assist;
   document.getElementById('photoPreviewWrap').innerHTML = p.photo
     ? `<img src="${p.photo}" class="photo-preview"><div class="photo-upload-text">Clique para trocar</div>`
     : '<div class="photo-upload-icon">📷</div><div class="photo-upload-text">Clique para enviar foto</div>';
@@ -1907,8 +1913,6 @@ window.savePlayer = async function() {
   const equipe = document.getElementById('pEquipe').value;
   const posicao = document.getElementById('pPosicao').value;
   const camisa = parseInt(document.getElementById('pCamisa').value) || null;
-  const gols = parseInt(document.getElementById('pGols').value) || 0;
-  const assist = parseInt(document.getElementById('pAssist').value) || 0;
   const errEl = document.getElementById('playerFormError');
 
   if (!nome || !posicao || !equipe) { errEl.textContent = 'Nome, posição e time da partida (PFC/LU) são obrigatórios.'; return; }
@@ -1922,7 +1926,7 @@ window.savePlayer = async function() {
         photoUrl = await uploadPhoto(photoUrl, pid);
       }
       const p = state.players.find(x => x.id === pid);
-      Object.assign(p, { nome, idade, cidade, time, equipe, posicao, camisa, gols, assist, photo: photoUrl });
+      Object.assign(p, { nome, idade, cidade, time, equipe, posicao, camisa, photo: photoUrl });
       await savePlayer(p);
     } else {
       const pid = 'p_' + Date.now();
@@ -1930,7 +1934,7 @@ window.savePlayer = async function() {
       if (photoUrl && photoUrl.startsWith('data:')) {
         photoUrl = await uploadPhoto(photoUrl, pid);
       }
-      const newPlayer = { id: pid, nome, idade, cidade, time, equipe, posicao, camisa, gols, assist, photo: photoUrl };
+      const newPlayer = { id: pid, nome, idade, cidade, time, equipe, posicao, camisa, photo: photoUrl };
       state.players.push(newPlayer);
       await savePlayer(newPlayer);
     }
