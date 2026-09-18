@@ -5,9 +5,21 @@
     {
       "src": "index.html",
       "use": "@vercel/static"
+    },
+    {
+      "src": "scout.html",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
+    {
+      "src": "/scout",
+      "dest": "/scout.html"
+    },
+    {
+      "src": "/scout.html",
+      "dest": "/scout.html"
+    },
     {
       "src": "/(.*)",
       "dest": "/index.html"
