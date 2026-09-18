@@ -71,11 +71,18 @@
     border: 1px solid rgba(255,255,255,0.07); border-radius: 15px; padding: 13px 13px 11px;
   }
   .pcard-head { display: flex; align-items: center; gap: 11px; margin-bottom: 11px; }
-  .camisa {
-    width: 42px; height: 42px; flex-shrink: 0; border-radius: 11px;
-    background: var(--bg3); border: 1px solid rgba(255,215,0,0.2);
+  .pavatar {
+    position: relative; width: 46px; height: 46px; flex-shrink: 0; border-radius: 11px;
+    background: var(--bg3); border: 1px solid rgba(255,215,0,0.2); overflow: hidden;
     display: flex; align-items: center; justify-content: center;
-    font-family: 'Bebas Neue'; font-size: 24px; color: var(--gold); line-height: 1;
+  }
+  .pavatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .pavatar .ph { font-size: 22px; }
+  .pavatar .num {
+    position: absolute; bottom: 0; right: 0;
+    background: var(--gold); color: #1a1400;
+    font-family: 'Bebas Neue'; font-size: 12px; line-height: 1; padding: 2px 4px 1px;
+    border-top-left-radius: 6px;
   }
   .pinfo { flex: 1; min-width: 0; }
   .pnome { font-weight: 700; font-size: 15px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -223,7 +230,7 @@ scoutSelect.onchange = () => localStorage.setItem('cc_scout', scoutSelect.value)
 onSnapshot(collection(db, 'players'), snap => {
   players = snap.docs.map(d => ({ id: d.id, ...d.data() }))
     .sort((a,b) => {
-      const ta = (a.time||'zzz').toLowerCase(), tb = (b.time||'zzz').toLowerCase();
+      const ta = (a.equipe||'zzz').toLowerCase(), tb = (b.equipe||'zzz').toLowerCase();
       if (ta !== tb) return ta < tb ? -1 : 1;
       const ca = parseInt(a.camisa)||999, cb = parseInt(b.camisa)||999;
       if (ca !== cb) return ca - cb;
@@ -256,14 +263,14 @@ function totalEvents(pid) {
 
 // ===== Times (chips) =====
 function buildChips() {
-  const times = [...new Set(players.map(p => (p.time||'').trim()).filter(Boolean))].sort();
+  const times = [...new Set(players.map(p => (p.equipe||'').trim()).filter(Boolean))].sort();
   const chips = document.getElementById('chips');
   let html = `<div class="chip ${currentTeam==='ALL'?'active':''}" data-team="ALL">Todos</div>`;
   times.forEach(t => {
     html += `<div class="chip ${currentTeam===t?'active':''}" data-team="${escapeAttr(t)}">${escapeHtml(t)}</div>`;
   });
-  const semTime = players.some(p => !(p.time||'').trim());
-  if (semTime) html += `<div class="chip ${currentTeam==='NONE'?'active':''}" data-team="NONE">Sem time</div>`;
+  const semTime = players.some(p => !(p.equipe||'').trim());
+  if (semTime) html += `<div class="chip ${currentTeam==='NONE'?'active':''}" data-team="NONE">Sem equipe</div>`;
   chips.innerHTML = html;
   chips.querySelectorAll('.chip').forEach(c => {
     c.onclick = () => { currentTeam = c.dataset.team; buildChips(); render(); };
@@ -274,8 +281,8 @@ function buildChips() {
 function render() {
   const container = document.getElementById('container');
   let list = players;
-  if (currentTeam === 'NONE') list = list.filter(p => !(p.time||'').trim());
-  else if (currentTeam !== 'ALL') list = list.filter(p => (p.time||'').trim() === currentTeam);
+  if (currentTeam === 'NONE') list = list.filter(p => !(p.equipe||'').trim());
+  else if (currentTeam !== 'ALL') list = list.filter(p => (p.equipe||'').trim() === currentTeam);
   if (searchTerm) {
     const q = searchTerm.toLowerCase();
     list = list.filter(p => (p.nome||'').toLowerCase().includes(q) || String(p.camisa||'').includes(q));
@@ -308,10 +315,13 @@ function render() {
     const canUndo = undoStack.some(a => a.pid === p.id);
     return `<div class="pcard">
       <div class="pcard-head">
-        <div class="camisa">${p.camisa ? p.camisa : '—'}</div>
+        <div class="pavatar">
+          ${p.photo ? `<img src="${p.photo}" alt="">` : `<span class="ph">⚽</span>`}
+          ${p.camisa ? `<span class="num">${p.camisa}</span>` : ''}
+        </div>
         <div class="pinfo">
           <div class="pnome">${escapeHtml(p.nome||'Sem nome')}</div>
-          <div class="ptime">${escapeHtml(p.time || 'Sem time')}${p.posicao ? ' · ' + escapeHtml(p.posicao) : ''}</div>
+          <div class="ptime">${escapeHtml(p.equipe || 'Sem equipe')}${p.posicao ? ' · ' + escapeHtml(p.posicao) : ''}</div>
         </div>
         <div class="score ${scls}">
           <div class="score-val">${scoreTxt}</div>
