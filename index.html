@@ -708,25 +708,18 @@
       <div class="auth-logo"><span>CABANA CUP</span></div>
       <div class="auth-sub">Legends 2026</div>
 
-      <div class="auth-toggle" style="margin-bottom:24px">
-        <button class="auth-toggle-btn active" id="toggleLogin" onclick="switchAuth('login')">Entrar</button>
-        <button class="auth-toggle-btn" id="toggleReg" onclick="switchAuth('register')">Cadastrar</button>
-      </div>
+      <div style="margin-bottom:8px"></div>
 
       <!-- LOGIN -->
       <div id="formLogin">
         <div class="form-group">
-          <label class="form-label">Nome de Usuário</label>
-          <input class="form-input" id="loginUser" placeholder="seu_usuario" autocomplete="off">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Telefone</label>
-          <input class="form-input" id="loginPhone" placeholder="(11) 99999-9999" type="tel">
+          <label class="form-label">📱 Seu telefone</label>
+          <input class="form-input" id="loginPhone" placeholder="(11) 99999-9999" type="tel" autocomplete="tel">
         </div>
         <div id="loginError" class="form-error" style="margin-bottom:12px"></div>
         <button class="btn-gold" style="width:100%" onclick="doLogin()">Entrar →</button>
         <p style="text-align:center;margin-top:16px;font-size:12px;color:var(--muted)">
-          Não tem conta? <a href="#" onclick="switchAuth('register')" style="color:var(--gold);text-decoration:none">Cadastre-se</a>
+          Entre com o telefone que você passou pro admin.
         </p>
         <!-- Admin link discreto -->
         <div style="text-align:center;margin-top:24px;padding-top:20px;border-top:1px solid rgba(255,255,255,0.05)">
@@ -925,6 +918,11 @@
         <option value="PFC">PFC</option>
         <option value="LU">LU</option>
       </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">📱 Telefone do jogador (login)</label>
+      <input class="form-input" id="pTelefone" placeholder="(11) 99999-9999" type="tel">
+      <div style="font-size:11px;color:var(--muted);margin-top:5px">Com esse número o jogador entra direto como ele mesmo. Deixe em branco se ele não for logar.</div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
       <div class="form-group">
@@ -1189,8 +1187,8 @@ function showAuth(mode) {
 function switchAuth(mode) {
   document.getElementById('formLogin').style.display = mode==='login' ? 'block' : 'none';
   document.getElementById('formRegister').style.display = mode==='register' ? 'block' : 'none';
-  document.getElementById('toggleLogin').classList.toggle('active', mode==='login');
-  document.getElementById('toggleReg').classList.toggle('active', mode==='register');
+  document.getElementById('toggleLogin')?.classList.toggle('active', mode==='login');
+  document.getElementById('toggleReg')?.classList.toggle('active', mode==='register');
 }
 
 function switchAuthTab(tab) {} // kept for compat
@@ -1249,20 +1247,33 @@ async function doAdminLogin() {
 window.doAdminLogin = doAdminLogin;
 
 async function doLogin() {
-  const user = document.getElementById('loginUser').value.trim();
-  const phone = document.getElementById('loginPhone').value.trim();
+  const phoneRaw = document.getElementById('loginPhone').value.trim();
   const errEl = document.getElementById('loginError');
   errEl.textContent = '';
 
-  if (!user || !phone) { errEl.textContent = 'Preencha todos os campos.'; return; }
+  const digits = phoneRaw.replace(/\D/g, '');
+  if (digits.length < 8) { errEl.textContent = 'Digite um telefone válido.'; return; }
 
-  // Refresh users from Firestore
-  const usersSnap = await getDocs(collection(db, 'users'));
-  state.users = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+  errEl.textContent = 'Entrando...';
+  // Recarrega jogadores do Firestore
+  const playersSnap = await getDocs(collection(db, 'players'));
+  state.players = playersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-  const found = state.users.find(u => u.username === user && u.phone === phone);
-  if (!found) { errEl.textContent = 'Usuário ou telefone incorretos.'; return; }
-  loginUser(found);
+  const player = state.players.find(p => (p.telefone || '').replace(/\D/g, '') === digits && digits.length > 0);
+  if (!player) {
+    errEl.textContent = 'Telefone não cadastrado. Peça para o admin te adicionar.';
+    return;
+  }
+
+  // Loga JÁ VINCULADO ao jogador — a identidade da sessão é o próprio jogador
+  loginUser({
+    id: player.id,
+    playerId: player.id,
+    name: player.nome,
+    phone: player.telefone || '',
+    isAdmin: false
+  });
+  showToast('✅ Bem-vindo, ' + player.nome + '!', 'success');
 }
 
 async function doRegister() {
@@ -1864,7 +1875,7 @@ window.openAddPlayer = function() {
   state.editingPlayerId = null;
   state.editingPhotoData = null;
   document.getElementById('modalPlayerTitle').textContent = 'Adicionar Jogador';
-  ['pNome','pIdade','pCidade','pTime','pCamisa'].forEach(id => document.getElementById(id).value = '');
+  ['pNome','pIdade','pCidade','pTime','pCamisa','pTelefone'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('pPosicao').value = '';
   document.getElementById('pEquipe').value = '';
   document.getElementById('photoPreviewWrap').innerHTML = '<div class="photo-upload-icon">📷</div><div class="photo-upload-text">Clique para enviar foto</div>';
@@ -1883,6 +1894,7 @@ window.editPlayer = function(pid) {
   document.getElementById('pCidade').value = p.cidade;
   document.getElementById('pTime').value = p.time;
   document.getElementById('pEquipe').value = p.equipe || '';
+  document.getElementById('pTelefone').value = p.telefone || '';
   document.getElementById('pPosicao').value = p.posicao;
   document.getElementById('pCamisa').value = p.camisa || '';
   document.getElementById('photoPreviewWrap').innerHTML = p.photo
@@ -1913,9 +1925,16 @@ window.savePlayer = async function() {
   const equipe = document.getElementById('pEquipe').value;
   const posicao = document.getElementById('pPosicao').value;
   const camisa = parseInt(document.getElementById('pCamisa').value) || null;
+  const telefone = document.getElementById('pTelefone').value.trim();
   const errEl = document.getElementById('playerFormError');
 
   if (!nome || !posicao || !equipe) { errEl.textContent = 'Nome, posição e time da partida (PFC/LU) são obrigatórios.'; return; }
+
+  if (telefone) {
+    const tdig = telefone.replace(/\D/g, '');
+    const clash = state.players.find(p => p.id !== state.editingPlayerId && (p.telefone||'').replace(/\D/g,'') === tdig);
+    if (clash) { errEl.textContent = `Esse telefone já está no jogador "${clash.nome}". Use um número diferente.`; return; }
+  }
 
   errEl.textContent = 'Salvando...';
   try {
@@ -1926,7 +1945,7 @@ window.savePlayer = async function() {
         photoUrl = await uploadPhoto(photoUrl, pid);
       }
       const p = state.players.find(x => x.id === pid);
-      Object.assign(p, { nome, idade, cidade, time, equipe, posicao, camisa, photo: photoUrl });
+      Object.assign(p, { nome, idade, cidade, time, equipe, telefone, posicao, camisa, photo: photoUrl });
       await savePlayer(p);
     } else {
       const pid = 'p_' + Date.now();
@@ -1934,7 +1953,7 @@ window.savePlayer = async function() {
       if (photoUrl && photoUrl.startsWith('data:')) {
         photoUrl = await uploadPhoto(photoUrl, pid);
       }
-      const newPlayer = { id: pid, nome, idade, cidade, time, equipe, posicao, camisa, photo: photoUrl };
+      const newPlayer = { id: pid, nome, idade, cidade, time, equipe, telefone, posicao, camisa, photo: photoUrl };
       state.players.push(newPlayer);
       await savePlayer(newPlayer);
     }
