@@ -1345,9 +1345,8 @@ window.showPage = showPage;
 // ===================== SCOUT (pontuação em campo) =====================
 const SCOUT_WEIGHTS = { gol:1, assist:1, chute:1, desarme:1, defesa:1, falta:-1, passe_errado:-1, tomou_gol:-1 };
 const SCOUT_DEFS = [
-  ['gol','⚽ Gols'],['assist','🅰️ Assistências'],['chute','🎯 Chutes a gol'],
-  ['desarme','🛡️ Desarmes'],['defesa','🧤 Defesas difíceis'],
-  ['falta','🚫 Faltas'],['passe_errado','❌ Passes errados'],['tomou_gol','😖 Gols sofridos']
+  ['gol','⚽ Gol'],['assist','🅰️ Assist.'],['chute','🎯 Chute'],['desarme','🛡️ Desarme'],
+  ['defesa','🧤 Defesa'],['falta','🚫 Falta'],['passe_errado','❌ Passe err.'],['tomou_gol','😖 Tomou gol']
 ];
 // Peso de cada ponto de scout na nota final (mude só aqui pra calibrar):
 const SCOUT_WEIGHT = 1;
