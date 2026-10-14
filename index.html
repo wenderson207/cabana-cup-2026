@@ -2257,7 +2257,20 @@ const FORMATIONS = {
 };
 async function saveLineup() { await setDoc(doc(db, 'config', 'lineup'), state.lineup); }
 
-const PITCH_BG = "background:linear-gradient(180deg,#0e3420,#0a2616);border:1px solid rgba(0,230,118,0.2);background-image:repeating-linear-gradient(180deg,rgba(255,255,255,0.045) 0 32px,transparent 32px 64px)";
+const PITCH_WRAP = "position:relative;border-radius:14px;overflow:hidden;background:#15592f;border:1px solid rgba(0,0,0,0.3)";
+const FIELD_SVG = `<svg viewBox="0 0 100 133" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;z-index:0">`
+  + [0,1,2,3,4,5,6,7].map(i=>`<rect x="0" y="${(i*16.625).toFixed(2)}" width="100" height="16.7" fill="${i%2?'#155731':'#1a6b3c'}"/>`).join('')
+  + `<g fill="none" stroke="rgba(255,255,255,0.65)" stroke-width="0.5">`
+  + `<rect x="3" y="3" width="94" height="127"/>`
+  + `<line x1="3" y1="66.5" x2="97" y2="66.5"/>`
+  + `<circle cx="50" cy="66.5" r="11"/>`
+  + `<rect x="24" y="106" width="52" height="24"/><rect x="37.5" y="120" width="25" height="10"/><path d="M 42.4 106 Q 50 99 57.6 106"/>`
+  + `<rect x="24" y="3" width="52" height="24"/><rect x="37.5" y="3" width="25" height="10"/><path d="M 42.4 27 Q 50 34 57.6 27"/>`
+  + `<path d="M 3 6 Q 3 3 6 3"/><path d="M 94 3 Q 97 3 97 6"/><path d="M 97 127 Q 97 130 94 130"/><path d="M 6 130 Q 3 130 3 127"/>`
+  + `</g>`
+  + `<g fill="rgba(255,255,255,0.7)"><circle cx="50" cy="114" r="0.7"/><circle cx="50" cy="19" r="0.7"/><circle cx="50" cy="66.5" r="0.8"/></g>`
+  + `<g stroke="rgba(255,255,255,0.4)" stroke-width="0.25"><rect x="42" y="130" width="16" height="3" fill="rgba(255,255,255,0.12)"/><line x1="46" y1="130" x2="46" y2="133"/><line x1="50" y1="130" x2="50" y2="133"/><line x1="54" y1="130" x2="54" y2="133"/><line x1="42" y1="131.5" x2="58" y2="131.5"/></g>`
+  + `</svg>`;
 
 function teamCfg(team) {
   if (!state.lineup[team]) state.lineup[team] = { logo:null, formation:'2-3-1', starters:[], positions:{} };
@@ -2343,9 +2356,10 @@ function renderLineupConfig() {
     const starters = cfg.starters.map(id => state.players.find(p => p.id===id)).filter(Boolean);
     const tokens = starters.map(p => {
       const pos = cfg.positions[p.id] || { x:50, y:50 };
-      return `<div class="ltoken" data-team="${team}" data-pid="${p.id}" style="position:absolute;left:${pos.x}%;top:${pos.y}%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:2px;cursor:grab;touch-action:none;user-select:none;z-index:2">
+      return `<div class="ltoken" data-team="${team}" data-pid="${p.id}" style="position:absolute;left:${pos.x}%;top:${pos.y}%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:1px;cursor:grab;touch-action:none;user-select:none;z-index:2">
         ${tokenAvatar(p,40)}
-        <div style="font-size:9px;font-weight:700;background:rgba(0,0,0,0.6);padding:1px 5px;border-radius:5px;white-space:nowrap">${escAdmin((p.nome||'').split(' ')[0])}</div>
+        <div style="font-size:9px;font-weight:700;background:rgba(0,0,0,0.72);color:#fff;padding:1px 6px;border-radius:5px;white-space:nowrap;margin-top:2px">${escAdmin((p.nome||'').split(' ')[0])}</div>
+        ${p.posicao?`<div style="font-size:7px;font-weight:800;letter-spacing:.5px;color:#0a0a14;background:var(--gold);padding:0 4px;border-radius:3px">${escAdmin(p.posicao)}</div>`:''}
       </div>`;
     }).join('');
     const pitchInner = starters.length ? tokens
@@ -2371,7 +2385,7 @@ function renderLineupConfig() {
         <button class="btn-edit" onclick="setFormation('${team}', document.getElementById('formation_${team}').value)" title="Reposiciona pela formação">↻ Arrumar</button>
       </div>
       <div style="font-size:11px;color:var(--muted);margin:8px 0 2px">🖐️ Arraste os jogadores no campo pra definir a posição de cada um.</div>
-      <div id="pitch_${team}" class="lineup-pitch" style="position:relative;width:100%;max-width:340px;aspect-ratio:3/4;margin:10px auto 16px;border-radius:14px;${PITCH_BG};touch-action:none">${pitchInner}</div>
+      <div id="pitch_${team}" class="lineup-pitch" style="width:100%;max-width:340px;aspect-ratio:3/4;margin:10px auto 16px;${PITCH_WRAP};touch-action:none">${FIELD_SVG}${pitchInner}</div>
       <div class="form-label" style="margin-bottom:8px">Titulares — <span style="color:var(--gold)">${cfg.starters.length}/7</span></div>
       <div style="display:flex;flex-wrap:wrap;gap:8px">${chips}</div>
     </div>`;
@@ -2428,15 +2442,16 @@ function renderTeamPitch(team) {
   }
   const tokens = starters.map(p => {
     const pos = cfg.positions[p.id] || { x:50, y:50 };
-    return `<div style="position:absolute;left:${pos.x}%;top:${pos.y}%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:2px">
+    return `<div style="position:absolute;left:${pos.x}%;top:${pos.y}%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:1px;z-index:2">
       ${tokenAvatar(p,44)}
-      <div style="font-size:9px;font-weight:700;background:rgba(0,0,0,0.6);padding:1px 6px;border-radius:5px;white-space:nowrap">${escAdmin((p.nome||'').split(' ')[0])}${p.camisa?' · '+p.camisa:''}</div>
+      <div style="font-size:10px;font-weight:700;background:rgba(0,0,0,0.72);color:#fff;padding:1px 7px;border-radius:5px;white-space:nowrap;margin-top:2px">${escAdmin((p.nome||'').split(' ')[0])}</div>
+      ${p.posicao?`<div style="font-size:8px;font-weight:800;letter-spacing:.5px;color:#0a0a14;background:var(--gold);padding:0 5px;border-radius:3px">${escAdmin(p.posicao)}</div>`:''}
     </div>`;
   }).join('');
   return `
     <div class="dash-card">
       ${header}
-      <div style="position:relative;width:100%;max-width:360px;aspect-ratio:3/4;margin:0 auto;border-radius:14px;${PITCH_BG}">${tokens}</div>
+      <div style="width:100%;max-width:360px;aspect-ratio:3/4;margin:0 auto;${PITCH_WRAP}">${FIELD_SVG}${tokens}</div>
     </div>`;
 }
 function pitchSlot(p) {
