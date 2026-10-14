@@ -652,6 +652,7 @@
     <button class="nav-btn" onclick="showPage('avaliar')">Avaliar</button>
     <button class="nav-btn" onclick="showPage('hall')">Hall da Fama</button>
     <button class="nav-btn" onclick="showPage('premios')">Prêmios</button>
+    <button class="nav-btn" onclick="showPage('escalacao')">Escalação</button>
     <button class="nav-btn admin-only" style="display:none" onclick="showPage('admin')">Admin</button>
   </div>
   <div class="nav-user">
@@ -677,6 +678,9 @@
     </button>
     <button class="bnav-btn" id="bnav-premios" onclick="showPage('premios')">
       <span class="bnav-icon">🎖️</span>Prêmios
+    </button>
+    <button class="bnav-btn" id="bnav-escalacao" onclick="showPage('escalacao')">
+      <span class="bnav-icon">📋</span>Escala
     </button>
     <button class="bnav-btn admin-only" id="bnav-admin" style="display:none" onclick="showPage('admin')">
       <span class="bnav-icon">⚙️</span>Admin
@@ -846,6 +850,15 @@
   <div id="awardsGrid" class="awards-grid"></div>
 </div>
 
+<!-- ===================== ESCALAÇÃO ===================== -->
+<div id="page-escalacao" class="page">
+  <div style="padding:32px 24px;max-width:1400px;margin:0 auto">
+    <div class="section-title">Escalação</div>
+    <div class="section-sub">Os times titulares do dia do jogo — 18/10</div>
+    <div id="escalacaoContent" style="margin-top:24px"></div>
+  </div>
+</div>
+
 <!-- ===================== ADMIN ===================== -->
 <div id="page-admin" class="page">
   <div class="admin-page">
@@ -864,11 +877,17 @@
 
     <div class="admin-tabs">
       <button class="admin-tab active" data-tab="players" onclick="adminTab('players')">Jogadores</button>
+      <button class="admin-tab" data-tab="escalacao" onclick="adminTab('escalacao')">Escalação</button>
       <button class="admin-tab" data-tab="admins" onclick="adminTab('admins')">Admins</button>
     </div>
     <div id="adminTabPlayers">
       <button class="btn-gold" style="margin-bottom:24px" onclick="openAddPlayer()">+ Adicionar Jogador</button>
       <div id="adminPlayersList"></div>
+    </div>
+    <div id="adminTabEscalacao" style="display:none">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:20px;max-width:620px">Envie a logo de cada time, escolha a formação e marque os 7 titulares. Isso aparece na aba "Escalação" pra todo mundo.</div>
+      <div id="lineupConfig"></div>
+      <button class="btn-gold" style="margin-top:24px" onclick="saveLineupConfig()">Salvar escalação</button>
     </div>
     <div id="adminTabAdmins" style="display:none">
       <div style="font-size:13px;color:var(--muted);margin-bottom:20px;max-width:560px">Aprove quem pode entrar como admin. Quem for aprovado entra com o próprio e-mail e senha.</div>
@@ -1033,6 +1052,7 @@ let state = {
   evaluations: {}, // {userId: {playerId: {nota,comment,skills}}}
   scout: {},       // {playerId: {gol,assist,chute,desarme,defesa,falta,passe_errado,tomou_gol}}
   admins: [],      // {id,name,email,passHash,status:'pending'|'approved',createdAt}
+  lineup: { PFC:{logo:null,formation:'2-3-1',starters:[]}, LU:{logo:null,formation:'2-3-1',starters:[]} },
   evalOpen: true,
   editingPlayerId: null,
   editingPhotoData: null,
@@ -1079,6 +1099,15 @@ async function loadAll() {
     // Admins cadastrados no app (aprovação + login por e-mail)
     const adminsSnap = await getDocs(collection(db, 'admins'));
     state.admins = adminsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    // Escalação (logos, formação e titulares por time)
+    try {
+      const lnSnap = await getDoc(doc(db, 'config', 'lineup'));
+      if (lnSnap.exists()) {
+        const d = lnSnap.data();
+        ['PFC','LU'].forEach(t => { if (d[t]) state.lineup[t] = Object.assign({ logo:null, formation:'2-3-1', starters:[] }, d[t]); });
+      }
+    } catch(e) { console.error(e); }
 
     // Atualização AO VIVO do scout durante o jogo (Hall da Fama, Prêmios, etc.)
     onSnapshot(collection(db, 'scout'), snap => {
@@ -1439,7 +1468,7 @@ function logout() {
 
 function setupNav() {
   document.getElementById('mainNav').style.display = 'flex';
-  document.getElementById('navUsername').textContent = state.currentUser.username;
+  document.getElementById('navUsername').textContent = state.currentUser.username || state.currentUser.name || '';
   document.getElementById('navAvatar').textContent = state.currentUser.name.charAt(0).toUpperCase();
   const adminBtns = document.querySelectorAll('.admin-only');
   adminBtns.forEach(b => b.style.display = state.currentUser.isAdmin ? 'block' : 'none');
@@ -1467,6 +1496,7 @@ function showPage(name) {
   if (name==='avaliar') renderEvalPage();
   if (name==='hall') renderHall();
   if (name==='premios') renderPremios();
+  if (name==='escalacao') renderEscalacao();
   if (name==='admin') renderAdmin();
   if (name==='dashboard') updateDashboard();
 }
@@ -1960,9 +1990,11 @@ function renderPremios() {
 // ===================== ADMIN =====================
 window.adminTab = function(tab) {
   document.getElementById('adminTabPlayers').style.display = tab==='players' ? 'block' : 'none';
+  document.getElementById('adminTabEscalacao').style.display = tab==='escalacao' ? 'block' : 'none';
   document.getElementById('adminTabAdmins').style.display = tab==='admins' ? 'block' : 'none';
   document.querySelectorAll('.admin-tab').forEach(b => b.classList.toggle('active', b.dataset.tab===tab));
   if (tab==='admins') { refreshAdmins().then(renderAdminMgmt); }
+  if (tab==='escalacao') { renderLineupConfig(); }
 };
 
 function renderAdminMgmt() {
@@ -2167,6 +2199,123 @@ function tickCountdown() {
 }
 setInterval(tickCountdown, 1000);
 tickCountdown();
+
+// ===================== ESCALAÇÃO (logos, formação, titulares) =====================
+const FORMATIONS = {
+  '2-3-1': [2,3,1], '3-2-1': [3,2,1], '2-2-2': [2,2,2],
+  '3-1-2': [3,1,2], '1-3-2': [1,3,2], '2-1-3': [2,1,3],
+};
+async function saveLineup() { await setDoc(doc(db, 'config', 'lineup'), state.lineup); }
+
+// ---- Admin: configurar a escalação ----
+function renderLineupConfig() {
+  const el = document.getElementById('lineupConfig');
+  if (!el) return;
+  el.innerHTML = ['PFC','LU'].map(team => {
+    const cfg = state.lineup[team] || { logo:null, formation:'2-3-1', starters:[] };
+    const teamPlayers = state.players.filter(p => (p.equipe||'') === team);
+    const chips = teamPlayers.length ? teamPlayers.map(p => {
+      const on = cfg.starters.includes(p.id);
+      return `<div onclick="toggleStarter('${team}','${p.id}')" style="cursor:pointer;display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;border:1px solid ${on?'var(--gold)':'rgba(255,255,255,0.1)'};background:${on?'rgba(255,215,0,0.12)':'var(--card2)'}">
+        <span style="font-family:'Bebas Neue';font-size:16px;color:${on?'var(--gold)':'var(--muted)'};min-width:16px">${p.camisa||'–'}</span>
+        <span style="font-size:13px;font-weight:600">${escAdmin(p.nome)}</span>
+        <span style="font-size:10px;color:var(--muted)">${escAdmin(p.posicao||'')}</span>
+      </div>`;
+    }).join('') : `<div style="color:var(--muted);font-size:13px">Nenhum jogador no time ${team}. Cadastre jogadores com esse time na aba Jogadores.</div>`;
+    const logoBox = cfg.logo
+      ? `<img src="${cfg.logo}" style="width:72px;height:72px;object-fit:contain;border-radius:12px;background:#0d0d1c;border:1px solid rgba(255,255,255,0.1)">`
+      : `<div style="width:72px;height:72px;border-radius:12px;background:var(--card2);border:1px dashed rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:24px">🏳️</div>`;
+    return `
+    <div class="dash-card" style="margin-bottom:20px">
+      <div class="dash-card-title" style="margin-bottom:16px">🏟️ ${team}</div>
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:18px">
+        <div id="logoPrev_${team}">${logoBox}</div>
+        <div>
+          <input type="file" id="logoInput_${team}" accept="image/*" style="display:none" onchange="previewLogo(event,'${team}')">
+          <button class="btn-edit" onclick="document.getElementById('logoInput_${team}').click()">${cfg.logo?'Trocar logo':'Enviar logo'}</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Formação (1 goleiro + 6 na linha)</label>
+        <select class="form-input" id="formation_${team}" onchange="setFormation('${team}',this.value)">
+          ${Object.keys(FORMATIONS).map(f => `<option ${f===cfg.formation?'selected':''}>${f}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-label" style="margin-bottom:8px">Titulares — <span style="color:var(--gold)">${cfg.starters.length}/7</span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">${chips}</div>
+    </div>`;
+  }).join('');
+}
+window.toggleStarter = function(team, pid) {
+  const cfg = state.lineup[team];
+  const i = cfg.starters.indexOf(pid);
+  if (i >= 0) cfg.starters.splice(i,1);
+  else { if (cfg.starters.length >= 7) { showToast('Máximo de 7 titulares.',''); return; } cfg.starters.push(pid); }
+  renderLineupConfig();
+};
+window.setFormation = function(team, val) { state.lineup[team].formation = val; };
+window.previewLogo = function(event, team) {
+  const file = event.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async e => {
+    const compressed = await compressImage(e.target.result, 300, 0.85);
+    state.lineup[team].logo = compressed;
+    document.getElementById('logoPrev_'+team).innerHTML = `<img src="${compressed}" style="width:72px;height:72px;object-fit:contain;border-radius:12px;background:#0d0d1c;border:1px solid rgba(255,255,255,0.1)">`;
+  };
+  reader.readAsDataURL(file);
+};
+window.saveLineupConfig = async function() {
+  try { await saveLineup(); showToast('✅ Escalação salva!','success'); }
+  catch(e) { showToast('Erro ao salvar escalação.',''); console.error(e); }
+};
+
+// ---- Visualização: campo com os titulares ----
+function renderEscalacao() {
+  const el = document.getElementById('escalacaoContent');
+  if (!el) return;
+  el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px">${['PFC','LU'].map(renderTeamPitch).join('')}</div>`;
+}
+function renderTeamPitch(team) {
+  const cfg = state.lineup[team] || { logo:null, formation:'2-3-1', starters:[] };
+  const starters = cfg.starters.map(id => state.players.find(p => p.id===id)).filter(Boolean);
+  const header = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+      ${cfg.logo ? `<img src="${cfg.logo}" style="width:44px;height:44px;object-fit:contain">` : '<div style="width:44px;height:44px;border-radius:8px;background:var(--card2);display:flex;align-items:center;justify-content:center">🏳️</div>'}
+      <div><div style="font-family:'Bebas Neue';font-size:26px;line-height:1">${team}</div><div style="font-size:11px;color:var(--muted);font-family:'Rajdhani';font-weight:600">Formação ${cfg.formation} · ${starters.length}/7</div></div>
+    </div>`;
+  if (!starters.length) {
+    return `<div class="dash-card">${header}<div style="color:var(--muted);font-size:13px;padding:24px 0;text-align:center">Escalação ainda não definida pelo admin.</div></div>`;
+  }
+  let gk = starters.find(p => (p.posicao||'')==='GOL');
+  let outfield = starters.slice();
+  if (gk) outfield = outfield.filter(p => p.id!==gk.id); else gk = outfield.shift();
+  const rows = FORMATIONS[cfg.formation] || [2,3,1];
+  let idx = 0;
+  const rowHtml = rows.map(n => {
+    const slots = [];
+    for (let k=0;k<n && idx<outfield.length;k++,idx++) slots.push(pitchSlot(outfield[idx]));
+    return `<div style="display:flex;justify-content:space-evenly;gap:6px;margin:12px 0">${slots.join('')}</div>`;
+  }).reverse().join('');
+  const gkHtml = `<div style="display:flex;justify-content:center;margin-top:8px">${pitchSlot(gk)}</div>`;
+  return `
+    <div class="dash-card">
+      ${header}
+      <div style="background:linear-gradient(180deg,#0e2e1a,#0a2414);border:1px solid rgba(0,230,118,0.15);border-radius:14px;padding:16px 8px;background-image:repeating-linear-gradient(180deg,rgba(255,255,255,0.03) 0 30px,transparent 30px 60px)">
+        ${rowHtml}
+        ${gkHtml}
+      </div>
+    </div>`;
+}
+function pitchSlot(p) {
+  if (!p) return '';
+  const av = p.photo
+    ? `<img src="${p.photo}" style="width:46px;height:46px;border-radius:50%;object-fit:cover;border:2px solid var(--gold)">`
+    : `<div style="width:46px;height:46px;border-radius:50%;background:var(--card2);border:2px solid var(--gold);display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue';font-size:18px;color:var(--gold)">${p.camisa||'?'}</div>`;
+  return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;max-width:72px">
+    ${av}
+    <div style="font-size:10px;font-weight:700;text-align:center;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:70px">${escAdmin((p.nome||'').split(' ')[0])}</div>
+  </div>`;
+}
 
 document.querySelectorAll('.modal-overlay').forEach(el => {
   el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
