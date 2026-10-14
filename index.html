@@ -639,6 +639,27 @@
     .award-card { padding:16px 12px; }
     .award-icon { font-size:32px; }
   }
+
+  /* ===== Intro de login: escudos se batendo + explosão ===== */
+  .intro-overlay{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;overflow:hidden;background:radial-gradient(circle at 50% 42%,#1b1b33,#070710 72%);opacity:1;transition:opacity .5s ease;cursor:pointer}
+  .intro-overlay.intro-out{opacity:0}
+  .intro-stage{position:relative;width:100%;max-width:560px;height:360px;display:flex;align-items:center;justify-content:center}
+  .intro-shake{animation:introShake .4s .82s}
+  @keyframes introShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-10px)}40%{transform:translateX(9px)}60%{transform:translateX(-6px)}80%{transform:translateX(4px)}}
+  .intro-shield{position:absolute;top:50%;left:50%;width:128px;height:128px;object-fit:contain;filter:drop-shadow(0 0 18px rgba(255,215,0,.55))}
+  .intro-shield-ph{display:flex;align-items:center;justify-content:center;font-size:76px;background:var(--card2);border-radius:22px;border:2px solid var(--gold)}
+  .intro-left{animation:introLeft .9s cubic-bezier(.45,0,.25,1) forwards, shieldOut .5s 1.15s forwards}
+  .intro-right{animation:introRight .9s cubic-bezier(.45,0,.25,1) forwards, shieldOut .5s 1.15s forwards}
+  @keyframes introLeft{0%{transform:translate(calc(-50vw - 140px),-50%) rotate(-28deg);opacity:0}55%{opacity:1}100%{transform:translate(calc(-100% - 6px),-50%) rotate(0);opacity:1}}
+  @keyframes introRight{0%{transform:translate(calc(50vw + 140px),-50%) rotate(28deg);opacity:0}55%{opacity:1}100%{transform:translate(6px,-50%) rotate(0);opacity:1}}
+  @keyframes shieldOut{to{opacity:0;filter:blur(3px) drop-shadow(0 0 0 rgba(255,215,0,0))}}
+  .intro-flash{position:absolute;top:50%;left:50%;width:40px;height:40px;border-radius:50%;transform:translate(-50%,-50%) scale(0);background:radial-gradient(circle,#fff,rgba(255,215,0,.9) 30%,rgba(255,140,0,.5) 55%,transparent 72%);opacity:0;animation:introFlash .7s .82s ease-out forwards}
+  @keyframes introFlash{0%{transform:translate(-50%,-50%) scale(0);opacity:1}100%{transform:translate(-50%,-50%) scale(14);opacity:0}}
+  .intro-text{position:absolute;text-align:center;opacity:0;transform:scale(.8);animation:introTextIn .7s 1.2s cubic-bezier(.2,1.2,.3,1) forwards;padding:0 16px}
+  .intro-welcome{font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:4px;font-size:14px;color:var(--muted);margin-bottom:4px}
+  .intro-title{font-family:'Bebas Neue',sans-serif;font-size:64px;line-height:.9;letter-spacing:2px;background:linear-gradient(135deg,var(--gold-light),var(--gold),var(--gold-dark));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 20px rgba(255,215,0,.35))}
+  .intro-sub{font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:6px;font-size:16px;color:var(--text);margin-top:4px}
+  @keyframes introTextIn{to{opacity:1;transform:scale(1)}}
 </style>
 </head>
 <body>
@@ -1328,6 +1349,7 @@ async function doAdminLogin() {
     setupNav();
     showPage('admin');
     renderAdmin();
+    playIntro();
     showToast('✅ Bem-vindo, ' + appAdmin.name + '!', 'success');
     return;
   }
@@ -1349,6 +1371,7 @@ async function doAdminLogin() {
     sessionStorage.setItem('ccl_currentUser', JSON.stringify(adminUser));
     setupNav();
     showPage('admin');
+    playIntro();
     showToast('✅ Bem-vindo, Admin!', 'success');
   } catch(err) {
     const msgs = {
@@ -1453,6 +1476,33 @@ function loginUser(user) {
   setupNav();
   showPage('dashboard');
   updateDashboard();
+  playIntro();
+}
+
+// Abertura épica: os dois escudos se chocam, explodem e aparece o "bem-vindos"
+function playIntro() {
+  const pfc = (state.lineup && state.lineup.PFC && state.lineup.PFC.logo) || null;
+  const lu  = (state.lineup && state.lineup.LU  && state.lineup.LU.logo)  || null;
+  const shield = (src, side) => src
+    ? `<img src="${src}" class="intro-shield intro-${side}" alt="">`
+    : `<div class="intro-shield intro-shield-ph intro-${side}">🛡️</div>`;
+  const ov = document.createElement('div');
+  ov.className = 'intro-overlay';
+  ov.innerHTML = `
+    <div class="intro-stage intro-shake">
+      ${shield(pfc,'left')}
+      <div class="intro-flash"></div>
+      ${shield(lu,'right')}
+      <div class="intro-text">
+        <div class="intro-welcome">BEM-VINDOS AO</div>
+        <div class="intro-title">CABANA CUP</div>
+        <div class="intro-sub">LEGENDS 2026</div>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = () => { ov.classList.add('intro-out'); setTimeout(() => ov.remove(), 500); };
+  const timer = setTimeout(close, 3800);
+  ov.addEventListener('click', () => { clearTimeout(timer); close(); });
 }
 
 function logout() {
