@@ -1178,18 +1178,25 @@ async function loadAll() {
     clearTimeout(timeout);
     showLoadingOverlay('hidden');
 
-    // Restore session
-    const savedUser = sessionStorage.getItem('ccl_currentUser');
+    // Restore session (continua logado ao recarregar/fechar a aba)
+    const savedUser = localStorage.getItem('ccl_currentUser') || sessionStorage.getItem('ccl_currentUser');
     if (savedUser) {
       try {
         const u = JSON.parse(savedUser);
-        const fresh = state.users.find(x => x.id === u.id);
-        if (fresh) {
-          state.currentUser = fresh;
-          setupNav();
-          showPage('dashboard');
+        let sessionUser = u;
+        if (u && !u.isAdmin) {
+          const pid = u.playerId || u.id;
+          const p = state.players.find(x => x.id === pid);
+          if (p) sessionUser = { id: p.id, playerId: p.id, name: p.nome, phone: p.telefone || '', isAdmin: false };
         }
-      } catch(e) {}
+        if (sessionUser) {
+          state.currentUser = sessionUser;
+          localStorage.setItem('ccl_currentUser', JSON.stringify(sessionUser));
+          setupNav();
+          showPage(sessionUser.isAdmin ? 'admin' : 'dashboard');
+          if (sessionUser.isAdmin) renderAdmin(); else updateDashboard();
+        }
+      } catch(e) { console.error(e); }
     }
 
   } catch(err) {
@@ -1375,7 +1382,7 @@ async function doAdminLogin() {
     if (h !== appAdmin.passHash) { errEl.textContent = 'Senha incorreta.'; return; }
     const adminUser = { id: appAdmin.id, name: appAdmin.name, email: appAdmin.email, isAdmin: true };
     state.currentUser = adminUser;
-    sessionStorage.setItem('ccl_currentUser', JSON.stringify(adminUser));
+    localStorage.setItem('ccl_currentUser', JSON.stringify(adminUser));
     setupNav();
     showPage('admin');
     renderAdmin();
@@ -1398,7 +1405,7 @@ async function doAdminLogin() {
       isAdmin: true
     };
     state.currentUser = adminUser;
-    sessionStorage.setItem('ccl_currentUser', JSON.stringify(adminUser));
+    localStorage.setItem('ccl_currentUser', JSON.stringify(adminUser));
     setupNav();
     showPage('admin');
     playIntro();
@@ -1503,7 +1510,7 @@ async function doRegister() {
 function loginUser(user) {
   state.currentUser = user;
   state.fantasyDraft = null;
-  sessionStorage.setItem('ccl_currentUser', JSON.stringify(user));
+  localStorage.setItem('ccl_currentUser', JSON.stringify(user));
   setupNav();
   const needFantasy = !user.isAdmin && !state.fantasy[user.id] && Date.now() < CABANA_DATE;
   showPage(needFantasy ? 'cartola' : 'dashboard');
@@ -1542,7 +1549,9 @@ function logout() {
     signOut(auth).catch(() => {});
   }
   state.currentUser = null;
+  localStorage.removeItem('ccl_currentUser');
   sessionStorage.removeItem('ccl_currentUser');
+  state.fantasyDraft = null;
   document.getElementById('mainNav').style.display = 'none';
   document.getElementById('bottomNav').style.display = 'none';
   showPage('landing');
