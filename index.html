@@ -961,6 +961,30 @@
 </div>
 
 <!-- ===================== MODAL AVALIAÇÃO ===================== -->
+<!-- ===================== MODAL COMPLETAR PERFIL ===================== -->
+<div class="modal-overlay" id="modalProfile">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modalProfile')">✕</button>
+    <div class="modal-title">Complete seu perfil 👤</div>
+    <div style="font-size:13px;color:var(--muted);margin:-6px 0 18px">Faltam alguns dados no seu card. Preencha pra deixar completo — dá pra pular e fazer depois.</div>
+    <div class="form-group">
+      <label class="form-label">🎂 Idade</label>
+      <input class="form-input" id="profIdade" type="number" min="1" max="99" placeholder="Ex: 27">
+    </div>
+    <div class="form-group">
+      <label class="form-label">🏙️ Cidade Natal</label>
+      <input class="form-input" id="profCidade" placeholder="Ex: Campo Limpo Paulista">
+    </div>
+    <div class="form-group">
+      <label class="form-label">❤️ Time Favorito</label>
+      <input class="form-input" id="profTime" placeholder="Ex: Corinthians">
+    </div>
+    <div id="profError" class="form-error" style="margin-bottom:10px"></div>
+    <button class="btn-gold" style="width:100%;margin-top:4px" onclick="saveProfile()">Salvar ✓</button>
+    <p style="text-align:center;margin-top:12px"><a href="#" onclick="closeModal('modalProfile');return false" style="font-size:12px;color:var(--muted);text-decoration:none">pular por agora</a></p>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modalEval">
   <div class="modal" style="max-width:560px">
     <button class="modal-close" onclick="closeModal('modalEval')">✕</button>
@@ -1349,7 +1373,38 @@ async function doLogin() {
     isAdmin: false
   });
   showToast('✅ Bem-vindo, ' + player.nome + '!', 'success');
+  maybePromptProfile(player);
 }
+
+// Abre o modal de completar perfil se faltar idade, cidade natal ou time favorito
+function maybePromptProfile(player) {
+  if (!player) return;
+  const faltando = !player.idade || !player.cidade || !player.time;
+  if (!faltando) return;
+  document.getElementById('profIdade').value = player.idade || '';
+  document.getElementById('profCidade').value = player.cidade || '';
+  document.getElementById('profTime').value = player.time || '';
+  document.getElementById('profError').textContent = '';
+  openModal('modalProfile');
+}
+
+window.saveProfile = async function() {
+  const pid = state.currentUser && (state.currentUser.playerId || state.currentUser.id);
+  const p = state.players.find(x => x.id === pid);
+  const err = document.getElementById('profError');
+  if (!p) { closeModal('modalProfile'); return; }
+  const idade = parseInt(document.getElementById('profIdade').value) || null;
+  const cidade = document.getElementById('profCidade').value.trim();
+  const time = document.getElementById('profTime').value.trim();
+  if (idade != null) p.idade = idade;
+  if (cidade) p.cidade = cidade;
+  if (time) p.time = time;
+  err.textContent = 'Salvando...';
+  try { await savePlayer(p); } catch(e) { err.textContent = 'Erro ao salvar. Tente de novo.'; console.error(e); return; }
+  closeModal('modalProfile');
+  showToast('✅ Perfil atualizado!', 'success');
+  if (typeof updateDashboard === 'function') updateDashboard();
+};
 
 async function doRegister() {
   const name = document.getElementById('regName').value.trim();
