@@ -929,7 +929,7 @@
         <label class="form-label">Posição</label>
         <select class="form-input" id="pPosicao">
           <option value="">Selecione...</option>
-          <option>GOL</option><option>FIX</option><option>ALA</option><option>PÍV</option>
+          <option>GOL</option><option>ZAG</option><option>MEI</option><option>VOL</option><option>ATA</option>
         </select>
       </div>
       <div class="form-group">
@@ -1430,7 +1430,7 @@ function getClassification(nota) {
 }
 
 function getPlayerEmoji(p) {
-  const map = {GOL:'🧤',FIX:'🛡️',ALA:'⚡',PÍV:'🎯','PIV':'🎯'};
+  const map = {GOL:'🧤',ZAG:'🛡️',VOL:'⚙️',MEI:'🎯',ATA:'⚡'};
   return map[p.posicao] || '⚽';
 }
 
