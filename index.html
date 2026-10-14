@@ -999,6 +999,16 @@
 </div>
 
 <!-- ===================== MODAL AVALIAÇÃO ===================== -->
+<!-- ===================== MODAL ESCOLHER JOGADOR (CARTOLA) ===================== -->
+<div class="modal-overlay" id="modalFantasyPick">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modalFantasyPick')">✕</button>
+    <div class="modal-title">Escolher jogador</div>
+    <div id="fantasyPickSlotLbl" style="font-size:12px;color:var(--muted);margin:-6px 0 14px"></div>
+    <div id="fantasyPickGrid"></div>
+  </div>
+</div>
+
 <!-- ===================== MODAL COMPLETAR PERFIL ===================== -->
 <div class="modal-overlay" id="modalProfile">
   <div class="modal">
@@ -2286,12 +2296,12 @@ tickCountdown();
 
 // ===================== CARTOLA (time-fantasia dos usuários) =====================
 const FANTASY_SLOTS = {
-  '2-3-1': ['GOL','ZAG','ZAG','MEI','MEI','MEI','ATA'],
-  '3-2-1': ['GOL','ZAG','ZAG','ZAG','MEI','MEI','ATA'],
-  '2-2-2': ['GOL','ZAG','ZAG','MEI','MEI','ATA','ATA'],
-  '3-1-2': ['GOL','ZAG','ZAG','ZAG','VOL','ATA','ATA'],
-  '1-3-2': ['GOL','ZAG','MEI','MEI','MEI','ATA','ATA'],
-  '2-1-3': ['GOL','ZAG','ZAG','VOL','ATA','ATA','ATA'],
+  '2-3-1': ['ZAG','ZAG','MEI','MEI','MEI','ATA'],
+  '3-2-1': ['ZAG','ZAG','ZAG','MEI','MEI','ATA'],
+  '2-2-2': ['ZAG','ZAG','MEI','MEI','ATA','ATA'],
+  '3-1-2': ['ZAG','ZAG','ZAG','VOL','ATA','ATA'],
+  '1-3-2': ['ZAG','MEI','MEI','MEI','ATA','ATA'],
+  '2-1-3': ['ZAG','ZAG','VOL','ATA','ATA','ATA'],
 };
 function fantasyLocked() { return Date.now() >= CABANA_DATE; }
 function fantasyScore(f) {
@@ -2342,16 +2352,19 @@ function renderCartola() {
 
   const allPlayers = state.players.slice().sort((a,b) => (a.nome||'').localeCompare(b.nome||''));
   const slotRows = slots.map((lbl, i) => {
-    const current = draft.picks[i] || '';
-    const taken = draft.picks.filter((pid, j) => pid && j !== i);
-    const opts = allPlayers.filter(p => !taken.includes(p.id) || p.id === current)
-      .map(p => `<option value="${p.id}" ${p.id===current?'selected':''}>${escAdmin(p.nome)} — ${escAdmin(p.equipe||'?')}${p.posicao?' · '+escAdmin(p.posicao):''}</option>`).join('');
-    return `<div style="display:flex;align-items:center;gap:10px;background:var(--card2);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:8px 10px">
+    const pid = draft.picks[i];
+    const p = pid && state.players.find(x => x.id===pid);
+    const inner = p
+      ? `<div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
+           ${tokenAvatar(p,38)}
+           <div style="min-width:0"><div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escAdmin(p.nome)}</div><div style="font-size:10px;color:var(--muted)">${escAdmin(p.equipe||'')}${p.posicao?' · '+escAdmin(p.posicao):''}</div></div>
+         </div>
+         <span style="font-family:'Bebas Neue';font-size:16px;color:${calcScout(p)>=0?'var(--green)':'var(--red)'}">${calcScout(p)>=0?'+':''}${calcScout(p)}</span>
+         <button onclick="event.stopPropagation();clearFantasySlot(${i})" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0 4px;line-height:1">×</button>`
+      : `<span style="flex:1;color:var(--muted);font-size:13px">＋ Escolher jogador</span><span style="color:var(--muted);font-size:16px">›</span>`;
+    return `<div onclick="openFantasyPicker(${i})" style="display:flex;align-items:center;gap:10px;background:var(--card2);border:1px solid ${p?'rgba(255,215,0,0.25)':'rgba(255,255,255,0.08)'};border-radius:10px;padding:8px 10px;cursor:pointer">
       <span style="font-size:10px;font-weight:800;color:#0a0a14;background:var(--gold);padding:2px 7px;border-radius:5px;min-width:38px;text-align:center">${lbl}</span>
-      <select class="form-input" style="flex:1" onchange="setFantasyPick(${i}, this.value)">
-        <option value="">— escolher jogador —</option>
-        ${opts}
-      </select>
+      ${inner}
     </div>`;
   }).join('');
 
@@ -2384,6 +2397,7 @@ function fantasyTeamView(f) {
     const pts = p ? calcScout(p) : null;
     return `<div style="display:flex;align-items:center;gap:10px;background:var(--card2);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:8px 12px">
       <span style="font-size:10px;font-weight:800;color:#0a0a14;background:var(--gold);padding:2px 7px;border-radius:5px;min-width:38px;text-align:center">${slots[i]||''}</span>
+      ${p?tokenAvatar(p,34):''}
       <span style="font-size:13px;font-weight:600;flex:1">${p?escAdmin(p.nome):'—'}</span>
       <span style="font-family:'Bebas Neue';font-size:18px;color:${pts>=0?'var(--green)':'var(--red)'}">${pts!==null?(pts>=0?'+':'')+pts:''}</span>
     </div>`;
@@ -2406,6 +2420,43 @@ window.setFantasyFormation = function(val) {
 window.setFantasyPick = function(i, pid) {
   ensureFantasyDraft();
   state.fantasyDraft.picks[i] = pid || null;
+  renderCartola();
+};
+window.clearFantasySlot = function(i) {
+  ensureFantasyDraft();
+  state.fantasyDraft.picks[i] = null;
+  renderCartola();
+};
+window.openFantasyPicker = function(i) {
+  if (fantasyLocked()) return;
+  const draft = ensureFantasyDraft();
+  state._fantasyPickSlot = i;
+  const lbl = (FANTASY_SLOTS[draft.formation] || [])[i] || '';
+  document.getElementById('fantasyPickSlotLbl').textContent = 'Posição ' + lbl + ' — escolha um jogador (PFC ou LU)';
+  const taken = draft.picks.filter((pid, j) => pid && j !== i);
+  const avail = state.players.slice().sort((a,b) => (a.nome||'').localeCompare(b.nome||'')).filter(p => !taken.includes(p.id));
+  const grid = document.getElementById('fantasyPickGrid');
+  grid.innerHTML = avail.length
+    ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:10px;max-height:60vh;overflow:auto;padding:2px">`
+      + avail.map(p => {
+        const pts = calcScout(p);
+        const sel = draft.picks[i] === p.id;
+        return `<div onclick="pickFantasyPlayer('${p.id}')" style="cursor:pointer;background:${sel?'rgba(255,215,0,0.14)':'var(--card2)'};border:1px solid ${sel?'var(--gold)':'rgba(255,255,255,0.08)'};border-radius:12px;padding:12px 8px;text-align:center">
+          <div style="display:flex;justify-content:center;margin-bottom:6px">${tokenAvatar(p,52)}</div>
+          <div style="font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escAdmin(p.nome)}</div>
+          <div style="font-size:10px;color:var(--muted)">${escAdmin(p.equipe||'')}${p.posicao?' · '+escAdmin(p.posicao):''}</div>
+          <div style="font-family:'Bebas Neue';font-size:16px;color:${pts>=0?'var(--green)':'var(--red)'};margin-top:2px">${pts>=0?'+':''}${pts} pts</div>
+        </div>`;
+      }).join('') + `</div>`
+    : '<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">Nenhum jogador disponível.</div>';
+  openModal('modalFantasyPick');
+};
+window.pickFantasyPlayer = function(pid) {
+  const i = state._fantasyPickSlot;
+  if (i == null) return;
+  ensureFantasyDraft();
+  state.fantasyDraft.picks[i] = pid;
+  closeModal('modalFantasyPick');
   renderCartola();
 };
 window.saveFantasy = async function() {
