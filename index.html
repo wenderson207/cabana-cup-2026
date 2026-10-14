@@ -644,18 +644,18 @@
   .intro-overlay{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;overflow:hidden;background:radial-gradient(circle at 50% 44%,#1b1b33,#050509 75%);opacity:1;transition:opacity .6s ease;cursor:pointer}
   .intro-overlay.intro-out{opacity:0}
   .intro-stage{position:relative;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center}
-  .intro-shake{animation:introShake .55s 1.45s}
+  .intro-shake{animation:introShake .6s 2.05s}
   @keyframes introShake{0%,100%{transform:translate(0,0)}12%{transform:translate(-18px,8px)}26%{transform:translate(16px,-7px)}40%{transform:translate(-13px,6px)}56%{transform:translate(11px,-5px)}72%{transform:translate(-7px,3px)}88%{transform:translate(4px,-2px)}}
   .intro-shield{position:absolute;top:50%;left:50%;width:clamp(170px,44vmin,340px);height:clamp(170px,44vmin,340px);object-fit:contain;filter:drop-shadow(0 0 26px rgba(255,215,0,.6))}
   .intro-shield-ph{display:flex;align-items:center;justify-content:center;font-size:clamp(90px,24vmin,200px);background:var(--card2);border-radius:28px;border:3px solid var(--gold)}
-  .intro-left{animation:introLeft 1.5s cubic-bezier(.4,0,.2,1) forwards, shieldOut .8s 2.1s forwards}
-  .intro-right{animation:introRight 1.5s cubic-bezier(.4,0,.2,1) forwards, shieldOut .8s 2.1s forwards}
+  .intro-left{animation:introLeft 2.2s cubic-bezier(.35,0,.25,1) forwards, shieldOut .9s 4.2s forwards}
+  .intro-right{animation:introRight 2.2s cubic-bezier(.35,0,.25,1) forwards, shieldOut .9s 4.2s forwards}
   @keyframes introLeft{0%{transform:translate(-70vw,-50%) rotate(-45deg) scale(.5);opacity:0}45%{opacity:1}88%{transform:translate(calc(-100% + 2px),-50%) rotate(0) scale(1.12)}100%{transform:translate(calc(-100% - 4px),-50%) rotate(0) scale(1)}}
   @keyframes introRight{0%{transform:translate(70vw,-50%) rotate(45deg) scale(.5);opacity:0}45%{opacity:1}88%{transform:translate(-2px,-50%) rotate(0) scale(1.12)}100%{transform:translate(4px,-50%) rotate(0) scale(1)}}
   @keyframes shieldOut{to{opacity:0;filter:blur(5px) drop-shadow(0 0 0 rgba(255,215,0,0))}}
-  .intro-flash{position:absolute;top:50%;left:50%;width:60px;height:60px;border-radius:50%;transform:translate(-50%,-50%) scale(0);background:radial-gradient(circle,#fff,rgba(255,215,0,.95) 28%,rgba(255,120,0,.55) 52%,transparent 72%);opacity:0;animation:introFlash 1s 1.45s ease-out forwards}
+  .intro-flash{position:absolute;top:50%;left:50%;width:60px;height:60px;border-radius:50%;transform:translate(-50%,-50%) scale(0);background:radial-gradient(circle,#fff,rgba(255,215,0,.95) 28%,rgba(255,120,0,.55) 52%,transparent 72%);opacity:0;animation:introFlash 1.1s 2.05s ease-out forwards}
   @keyframes introFlash{0%{transform:translate(-50%,-50%) scale(0);opacity:1}100%{transform:translate(-50%,-50%) scale(26);opacity:0}}
-  .intro-text{position:absolute;text-align:center;opacity:0;transform:scale(.75);animation:introTextIn .9s 2.35s cubic-bezier(.2,1.3,.3,1) forwards;padding:0 16px}
+  .intro-text{position:absolute;text-align:center;opacity:0;transform:scale(.75);animation:introTextIn .9s 4.6s cubic-bezier(.2,1.3,.3,1) forwards;padding:0 16px}
   .intro-welcome{font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:5px;font-size:clamp(14px,3.5vw,20px);color:var(--muted);margin-bottom:6px}
   .intro-title{font-family:'Bebas Neue',sans-serif;font-size:clamp(60px,16vw,120px);line-height:.9;letter-spacing:2px;background:linear-gradient(135deg,var(--gold-light),var(--gold),var(--gold-dark));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 26px rgba(255,215,0,.4))}
   .intro-sub{font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:8px;font-size:clamp(16px,4vw,24px);color:var(--text);margin-top:6px}
@@ -1501,7 +1501,7 @@ function playIntro() {
     </div>`;
   document.body.appendChild(ov);
   const close = () => { ov.classList.add('intro-out'); setTimeout(() => ov.remove(), 500); };
-  const timer = setTimeout(close, 5000);
+  const timer = setTimeout(close, 7000);
   ov.addEventListener('click', () => { clearTimeout(timer); close(); });
 }
 
