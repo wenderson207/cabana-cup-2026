@@ -673,6 +673,7 @@
     <button class="nav-btn" onclick="showPage('avaliar')">Avaliar</button>
     <button class="nav-btn" onclick="showPage('hall')">Hall da Fama</button>
     <button class="nav-btn" onclick="showPage('premios')">Prêmios</button>
+    <button class="nav-btn" onclick="showPage('cartola')">Cartola</button>
     <button class="nav-btn" onclick="showPage('escalacao')">Escalação</button>
     <button class="nav-btn admin-only" style="display:none" onclick="showPage('admin')">Admin</button>
   </div>
@@ -699,6 +700,9 @@
     </button>
     <button class="bnav-btn" id="bnav-premios" onclick="showPage('premios')">
       <span class="bnav-icon">🎖️</span>Prêmios
+    </button>
+    <button class="bnav-btn" id="bnav-cartola" onclick="showPage('cartola')">
+      <span class="bnav-icon">🎩</span>Cartola
     </button>
     <button class="bnav-btn" id="bnav-escalacao" onclick="showPage('escalacao')">
       <span class="bnav-icon">📋</span>Escala
@@ -869,6 +873,15 @@
     <div class="section-sub">Destaques e conquistas especiais da partida</div>
   </div>
   <div id="awardsGrid" class="awards-grid"></div>
+</div>
+
+<!-- ===================== CARTOLA ===================== -->
+<div id="page-cartola" class="page">
+  <div style="padding:32px 24px;max-width:900px;margin:0 auto">
+    <div class="section-title">Cartola 🎩</div>
+    <div class="section-sub">Monte seu time dos sonhos e dispute o melhor técnico</div>
+    <div id="cartolaContent" style="margin-top:20px"></div>
+  </div>
 </div>
 
 <!-- ===================== ESCALAÇÃO ===================== -->
@@ -1074,6 +1087,8 @@ let state = {
   scout: {},       // {playerId: {gol,assist,chute,desarme,defesa,falta,passe_errado,tomou_gol}}
   admins: [],      // {id,name,email,passHash,status:'pending'|'approved',createdAt}
   lineup: { PFC:{logo:null,formation:'2-3-1',starters:[]}, LU:{logo:null,formation:'2-3-1',starters:[]} },
+  fantasy: {},        // {userId: {userId,tecnico,formation,picks:[pid...], updatedAt}} — times do Cartola
+  fantasyDraft: null, // rascunho do time do usuário atual
   evalOpen: true,
   editingPlayerId: null,
   editingPhotoData: null,
@@ -1120,6 +1135,11 @@ async function loadAll() {
     // Admins cadastrados no app (aprovação + login por e-mail)
     const adminsSnap = await getDocs(collection(db, 'admins'));
     state.admins = adminsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    // Cartola — times-fantasia montados pelos usuários
+    const fantasySnap = await getDocs(collection(db, 'fantasy'));
+    state.fantasy = {};
+    fantasySnap.docs.forEach(d => { state.fantasy[d.id] = { id: d.id, ...d.data() }; });
 
     // Escalação (logos, formação e titulares por time)
     try {
@@ -1472,9 +1492,11 @@ async function doRegister() {
 
 function loginUser(user) {
   state.currentUser = user;
+  state.fantasyDraft = null;
   sessionStorage.setItem('ccl_currentUser', JSON.stringify(user));
   setupNav();
-  showPage('dashboard');
+  const needFantasy = !user.isAdmin && !state.fantasy[user.id] && Date.now() < CABANA_DATE;
+  showPage(needFantasy ? 'cartola' : 'dashboard');
   updateDashboard();
   playIntro();
 }
@@ -1547,6 +1569,7 @@ function showPage(name) {
   if (name==='hall') renderHall();
   if (name==='premios') renderPremios();
   if (name==='escalacao') renderEscalacao();
+  if (name==='cartola') renderCartola();
   if (name==='admin') renderAdmin();
   if (name==='dashboard') updateDashboard();
 }
@@ -2012,7 +2035,18 @@ function renderPremios() {
     peDe = wC ? { player: wC, val: wCv } : null;
   }
 
+  // Técnicos do Cartola (Guardiola = melhor, Diniz = pior)
+  const tecs = Object.values(state.fantasy || {}).filter(f => f.picks && f.picks.some(Boolean)).map(f => ({ nome: f.tecnico || '?', val: fantasyScore(f) }));
+  let guardiola = null, diniz = null;
+  if (tecs.length) {
+    tecs.sort((a,b) => b.val - a.val);
+    guardiola = { player: { nome: tecs[0].nome }, val: tecs[0].val };
+    diniz = { player: { nome: tecs[tecs.length-1].nome }, val: tecs[tecs.length-1].val };
+  }
+
   const awards = [
+    { icon:'👔', title:'Guardiola', desc:'Melhor técnico do Cartola', data: guardiola },
+    { icon:'🤡', title:'Diniz', desc:'Pior técnico do Cartola', data: diniz },
     { icon:'🏆', title:'Craque da Partida', desc:'Maior nota geral', data: craque },
     { icon:'🐐', title:'GOAT da Cabana', desc:'Maior média histórica', data: goat },
     { icon:'⚽', title:'Artilheiro', desc:'Mais gols', data: artilheiro },
@@ -2249,6 +2283,144 @@ function tickCountdown() {
 }
 setInterval(tickCountdown, 1000);
 tickCountdown();
+
+// ===================== CARTOLA (time-fantasia dos usuários) =====================
+const FANTASY_SLOTS = {
+  '2-3-1': ['GOL','ZAG','ZAG','MEI','MEI','MEI','ATA'],
+  '3-2-1': ['GOL','ZAG','ZAG','ZAG','MEI','MEI','ATA'],
+  '2-2-2': ['GOL','ZAG','ZAG','MEI','MEI','ATA','ATA'],
+  '3-1-2': ['GOL','ZAG','ZAG','ZAG','VOL','ATA','ATA'],
+  '1-3-2': ['GOL','ZAG','MEI','MEI','MEI','ATA','ATA'],
+  '2-1-3': ['GOL','ZAG','ZAG','VOL','ATA','ATA','ATA'],
+};
+function fantasyLocked() { return Date.now() >= CABANA_DATE; }
+function fantasyScore(f) {
+  if (!f || !f.picks) return 0;
+  return f.picks.reduce((s, pid) => { const p = pid && state.players.find(x => x.id===pid); return s + (p ? calcScout(p) : 0); }, 0);
+}
+async function saveFantasyDoc(d) { await setDoc(doc(db, 'fantasy', d.userId), d); }
+
+function ensureFantasyDraft() {
+  if (!state.fantasyDraft) {
+    const uid = state.currentUser && state.currentUser.id;
+    const saved = uid && state.fantasy[uid];
+    state.fantasyDraft = saved
+      ? { formation: saved.formation || '2-3-1', picks: (saved.picks || []).slice() }
+      : { formation: '2-3-1', picks: [] };
+  }
+  const n = (FANTASY_SLOTS[state.fantasyDraft.formation] || []).length;
+  while (state.fantasyDraft.picks.length < n) state.fantasyDraft.picks.push(null);
+  state.fantasyDraft.picks.length = n;
+  return state.fantasyDraft;
+}
+
+function renderCartola() {
+  const el = document.getElementById('cartolaContent');
+  if (!el) return;
+  const uid = state.currentUser && state.currentUser.id;
+  const locked = fantasyLocked();
+  const saved = uid && state.fantasy[uid];
+
+  if (locked) {
+    if (!saved || !saved.picks || !saved.picks.some(Boolean)) {
+      el.innerHTML = `<div class="dash-card" style="text-align:center;padding:30px"><div style="font-size:40px;margin-bottom:8px">🔒</div><div style="font-weight:700;margin-bottom:6px">As escalações do Cartola estão travadas</div><div style="color:var(--muted);font-size:13px">O jogo já começou e você não montou um time a tempo.</div></div>`;
+      return;
+    }
+    el.innerHTML = `<div style="background:rgba(255,68,68,0.1);border:1px solid rgba(255,68,68,0.25);color:#ffb0b0;border-radius:10px;padding:12px 14px;margin-bottom:16px">🔒 Escalação travada — o jogo começou, não dá mais pra mudar.</div>` + fantasyTeamView(saved);
+    return;
+  }
+
+  const draft = ensureFantasyDraft();
+  const slots = FANTASY_SLOTS[draft.formation];
+  const chosen = draft.picks.filter(Boolean);
+  const complete = chosen.length === slots.length && new Set(chosen).size === chosen.length;
+  const score = fantasyScore({ picks: draft.picks });
+
+  const banner = !saved
+    ? `<div style="background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.3);color:var(--gold-light);border-radius:10px;padding:12px 14px;margin-bottom:16px">⚠️ <strong>Monte seu time!</strong> Escale seus jogadores pra concorrer a <strong>Guardiola</strong> (e fugir do <strong>Diniz</strong> 🤡).</div>`
+    : `<div class="alert alert-success" style="margin-bottom:16px">✅ Seu time está salvo. Pode ajustar até o dia do jogo.</div>`;
+
+  const allPlayers = state.players.slice().sort((a,b) => (a.nome||'').localeCompare(b.nome||''));
+  const slotRows = slots.map((lbl, i) => {
+    const current = draft.picks[i] || '';
+    const taken = draft.picks.filter((pid, j) => pid && j !== i);
+    const opts = allPlayers.filter(p => !taken.includes(p.id) || p.id === current)
+      .map(p => `<option value="${p.id}" ${p.id===current?'selected':''}>${escAdmin(p.nome)} — ${escAdmin(p.equipe||'?')}${p.posicao?' · '+escAdmin(p.posicao):''}</option>`).join('');
+    return `<div style="display:flex;align-items:center;gap:10px;background:var(--card2);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:8px 10px">
+      <span style="font-size:10px;font-weight:800;color:#0a0a14;background:var(--gold);padding:2px 7px;border-radius:5px;min-width:38px;text-align:center">${lbl}</span>
+      <select class="form-input" style="flex:1" onchange="setFantasyPick(${i}, this.value)">
+        <option value="">— escolher jogador —</option>
+        ${opts}
+      </select>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    ${banner}
+    <div class="dash-card">
+      <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px">
+        <div class="form-group" style="margin-bottom:0;flex:1;min-width:160px">
+          <label class="form-label">Formação</label>
+          <select class="form-input" id="fantasyFormation" onchange="setFantasyFormation(this.value)">
+            ${Object.keys(FANTASY_SLOTS).map(f => `<option ${f===draft.formation?'selected':''}>${f}</option>`).join('')}
+          </select>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">Pontuação atual</div>
+          <div style="font-family:'Bebas Neue';font-size:30px;color:var(--gold);line-height:1">${score}</div>
+        </div>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Escolha um jogador pra cada posição (pode misturar PFC e LU, e até você mesmo). Não dá pra repetir jogador.</div>
+      <div style="display:flex;flex-direction:column;gap:8px">${slotRows}</div>
+      <button class="btn-gold" style="width:100%;margin-top:18px" onclick="saveFantasy()">${saved?'Atualizar meu time':'Salvar meu time'} ✓</button>
+      ${!complete ? `<div style="text-align:center;font-size:11px;color:var(--muted);margin-top:8px">Faltam ${slots.length - chosen.length} posição(ões) pra completar.</div>` : ''}
+    </div>`;
+}
+
+function fantasyTeamView(f) {
+  const slots = FANTASY_SLOTS[f.formation] || [];
+  const rows = (f.picks||[]).map((pid, i) => {
+    const p = pid && state.players.find(x => x.id===pid);
+    const pts = p ? calcScout(p) : null;
+    return `<div style="display:flex;align-items:center;gap:10px;background:var(--card2);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:8px 12px">
+      <span style="font-size:10px;font-weight:800;color:#0a0a14;background:var(--gold);padding:2px 7px;border-radius:5px;min-width:38px;text-align:center">${slots[i]||''}</span>
+      <span style="font-size:13px;font-weight:600;flex:1">${p?escAdmin(p.nome):'—'}</span>
+      <span style="font-family:'Bebas Neue';font-size:18px;color:${pts>=0?'var(--green)':'var(--red)'}">${pts!==null?(pts>=0?'+':'')+pts:''}</span>
+    </div>`;
+  }).join('');
+  return `<div class="dash-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div><div style="font-weight:700;font-size:15px">Seu time (${escAdmin(f.formation)})</div><div style="font-size:11px;color:var(--muted)">Téc. ${escAdmin(f.tecnico||'')}</div></div>
+      <div style="text-align:right"><div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">Pontuação</div><div style="font-family:'Bebas Neue';font-size:30px;color:var(--gold);line-height:1">${fantasyScore(f)}</div></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">${rows}</div>
+  </div>`;
+}
+
+window.setFantasyFormation = function(val) {
+  ensureFantasyDraft();
+  state.fantasyDraft.formation = val;
+  ensureFantasyDraft();
+  renderCartola();
+};
+window.setFantasyPick = function(i, pid) {
+  ensureFantasyDraft();
+  state.fantasyDraft.picks[i] = pid || null;
+  renderCartola();
+};
+window.saveFantasy = async function() {
+  if (fantasyLocked()) { showToast('🔒 Escalações travadas.',''); return; }
+  const uid = state.currentUser && state.currentUser.id;
+  if (!uid) return;
+  const draft = ensureFantasyDraft();
+  const slots = FANTASY_SLOTS[draft.formation];
+  const chosen = draft.picks.filter(Boolean);
+  if (chosen.length !== slots.length) { showToast('Complete todas as posições do time.',''); return; }
+  if (new Set(chosen).size !== chosen.length) { showToast('Tem jogador repetido no time.',''); return; }
+  const docu = { userId: uid, tecnico: state.currentUser.name || 'Técnico', formation: draft.formation, picks: draft.picks.slice(), updatedAt: Date.now() };
+  try { await saveFantasyDoc(docu); state.fantasy[uid] = docu; showToast('✅ Time salvo! Boa sorte, técnico.','success'); renderCartola(); }
+  catch(e) { showToast('Erro ao salvar o time.',''); console.error(e); }
+};
 
 // ===================== ESCALAÇÃO (logos, formação, titulares) =====================
 const FORMATIONS = {
