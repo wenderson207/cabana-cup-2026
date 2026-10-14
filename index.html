@@ -737,6 +737,16 @@
           </div>
           <div id="adminLoginError" class="form-error" style="margin-bottom:10px"></div>
           <button onclick="doAdminLogin()" style="width:100%;background:transparent;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.35);font-family:'Rajdhani';font-weight:600;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;padding:9px;border-radius:7px;cursor:pointer;transition:all .2s;" onmouseover="this.style.borderColor='rgba(255,215,0,0.3)';this.style.color='var(--gold)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.12)';this.style.color='rgba(255,255,255,0.35)'">entrar →</button>
+          <div style="text-align:center;margin-top:16px">
+            <a href="#" onclick="toggleAdminRequest(event)" id="adminReqLink" style="font-size:11px;color:rgba(255,255,255,0.3);text-decoration:none;letter-spacing:.5px" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color='rgba(255,255,255,0.3)'">não tem acesso? solicitar ao admin</a>
+          </div>
+          <div id="adminRequestForm" style="display:none;margin-top:14px;border-top:1px solid rgba(255,255,255,0.07);padding-top:14px">
+            <div class="form-group"><label class="form-label">Seu nome</label><input class="form-input" id="reqAdminName" placeholder="João"></div>
+            <div class="form-group"><label class="form-label">E-mail</label><input class="form-input" id="reqAdminEmail" type="email" placeholder="voce@email.com" autocomplete="off"></div>
+            <div class="form-group"><label class="form-label">Crie uma senha</label><input class="form-input" id="reqAdminPass" type="password" placeholder="••••••••"></div>
+            <div id="reqAdminError" class="form-error" style="margin-bottom:10px"></div>
+            <button class="btn-gold" style="width:100%" onclick="requestAdmin()">Enviar solicitação</button>
+          </div>
         </div>
       </div>
 
@@ -860,8 +870,9 @@
     <div class="section-title">Painel Admin</div>
     <div class="section-sub">Gerenciamento de jogadores e partida</div>
     <div class="admin-tabs">
-      <button class="admin-tab active" onclick="adminTab('players')">Jogadores</button>
-      <button class="admin-tab" onclick="adminTab('config')">Configurações</button>
+      <button class="admin-tab active" data-tab="players" onclick="adminTab('players')">Jogadores</button>
+      <button class="admin-tab" data-tab="config" onclick="adminTab('config')">Configurações</button>
+      <button class="admin-tab" data-tab="admins" onclick="adminTab('admins')">Admins</button>
     </div>
     <div id="adminTabPlayers">
       <button class="btn-gold" style="margin-bottom:24px" onclick="openAddPlayer()">+ Adicionar Jogador</button>
@@ -873,6 +884,10 @@
         <div style="margin-bottom:16px;font-size:14px;color:var(--muted)">Controle quando os usuários podem avaliar.</div>
         <button class="btn-gold" onclick="toggleEvalOpen()" id="btnToggleEval">Fechar Avaliações</button>
       </div>
+    </div>
+    <div id="adminTabAdmins" style="display:none">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:20px;max-width:560px">Aprove quem pode entrar como admin. Quem for aprovado entra com o próprio e-mail e senha.</div>
+      <div id="adminMgmtList"></div>
     </div>
   </div>
 </div>
@@ -1002,6 +1017,7 @@ let state = {
   players: [],
   evaluations: {}, // {userId: {playerId: {nota,comment,skills}}}
   scout: {},       // {playerId: {gol,assist,chute,desarme,defesa,falta,passe_errado,tomou_gol}}
+  admins: [],      // {id,name,email,passHash,status:'pending'|'approved',createdAt}
   evalOpen: true,
   editingPlayerId: null,
   editingPhotoData: null,
@@ -1044,6 +1060,10 @@ async function loadAll() {
     const scoutSnap = await getDocs(collection(db, 'scout'));
     state.scout = {};
     scoutSnap.docs.forEach(d => { state.scout[d.id] = d.data(); });
+
+    // Admins cadastrados no app (aprovação + login por e-mail)
+    const adminsSnap = await getDocs(collection(db, 'admins'));
+    state.admins = adminsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
     // Atualização AO VIVO do scout durante o jogo (Hall da Fama, Prêmios, etc.)
     onSnapshot(collection(db, 'scout'), snap => {
@@ -1144,6 +1164,19 @@ async function savePlayer(player) {
 async function removePlayer(pid) {
   await deleteDoc(doc(db, 'players', pid));
 }
+
+// ===================== ADMINS (cadastro + aprovação) =====================
+async function saveAdmin(a) { await setDoc(doc(db, 'admins', a.id), a); }
+async function removeAdmin(id) { await deleteDoc(doc(db, 'admins', id)); }
+async function refreshAdmins() {
+  try { const s = await getDocs(collection(db, 'admins')); state.admins = s.docs.map(d => ({ id: d.id, ...d.data() })); }
+  catch(e) { console.error(e); }
+}
+async function hashPw(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+function escAdmin(s) { return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 async function saveEval(userId, evals) {
   await setDoc(doc(db, 'evaluations', userId), evals);
 }
@@ -1205,6 +1238,31 @@ function toggleAdminForm(e) {
 }
 window.toggleAdminForm = toggleAdminForm;
 
+window.toggleAdminRequest = function(e){
+  e.preventDefault();
+  const f = document.getElementById('adminRequestForm');
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+};
+window.requestAdmin = async function(){
+  const name = document.getElementById('reqAdminName').value.trim();
+  const email = document.getElementById('reqAdminEmail').value.trim();
+  const pass = document.getElementById('reqAdminPass').value;
+  const err = document.getElementById('reqAdminError');
+  err.textContent = '';
+  if (!name || !email || !pass) { err.textContent = 'Preencha nome, e-mail e senha.'; return; }
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { err.textContent = 'E-mail inválido.'; return; }
+  if (pass.length < 4) { err.textContent = 'Senha muito curta (mín. 4 caracteres).'; return; }
+  err.textContent = 'Enviando...';
+  await refreshAdmins();
+  if (state.admins.find(a => (a.email||'').toLowerCase() === email.toLowerCase())) {
+    err.textContent = 'Esse e-mail já foi solicitado ou já é admin.'; return;
+  }
+  const a = { id: 'adm_' + Date.now(), name, email, passHash: await hashPw(pass), status: 'pending', createdAt: Date.now() };
+  try { await saveAdmin(a); } catch(e) { err.textContent = 'Erro ao enviar. Tente de novo.'; console.error(e); return; }
+  state.admins.push(a);
+  document.getElementById('adminRequestForm').innerHTML = '<div style="text-align:center;color:var(--green);font-size:13px;padding:12px;line-height:1.5">✅ Solicitação enviada!<br>Quando o admin aprovar, entre com seu e-mail e senha.</div>';
+};
+
 async function doAdminLogin() {
   const email = document.getElementById('adminEmail').value.trim();
   const password = document.getElementById('adminPassword').value;
@@ -1213,9 +1271,26 @@ async function doAdminLogin() {
 
   if (!email || !password) { errEl.textContent = 'Preencha e-mail e senha.'; return; }
 
-  const btnEl = errEl.previousElementSibling;
-  errEl.textContent = '';
+  const emailLc = email.toLowerCase();
 
+  // 1) Admin cadastrado no próprio app (aprovado por outro admin)
+  await refreshAdmins();
+  const appAdmin = state.admins.find(a => (a.email||'').toLowerCase() === emailLc);
+  if (appAdmin) {
+    if (appAdmin.status === 'pending') { errEl.textContent = '⏳ Seu acesso ainda não foi aprovado pelo admin.'; return; }
+    const h = await hashPw(password);
+    if (h !== appAdmin.passHash) { errEl.textContent = 'Senha incorreta.'; return; }
+    const adminUser = { id: appAdmin.id, name: appAdmin.name, email: appAdmin.email, isAdmin: true };
+    state.currentUser = adminUser;
+    sessionStorage.setItem('ccl_currentUser', JSON.stringify(adminUser));
+    setupNav();
+    showPage('admin');
+    renderAdmin();
+    showToast('✅ Bem-vindo, ' + appAdmin.name + '!', 'success');
+    return;
+  }
+
+  // 2) Admin mestre (Firebase Authentication)
   try {
     const credential = await signInWithEmailAndPassword(auth, email, password);
     const fireUser = credential.user;
@@ -1842,12 +1917,48 @@ function renderPremios() {
 window.adminTab = function(tab) {
   document.getElementById('adminTabPlayers').style.display = tab==='players' ? 'block' : 'none';
   document.getElementById('adminTabConfig').style.display = tab==='config' ? 'block' : 'none';
-  document.querySelectorAll('.admin-tab').forEach((b,i) => {
-    b.classList.toggle('active', (i===0&&tab==='players')||(i===1&&tab==='config'));
-  });
+  document.getElementById('adminTabAdmins').style.display = tab==='admins' ? 'block' : 'none';
+  document.querySelectorAll('.admin-tab').forEach(b => b.classList.toggle('active', b.dataset.tab===tab));
   if (tab==='config') {
     document.getElementById('btnToggleEval').textContent = state.evalOpen ? 'Fechar Avaliações' : 'Abrir Avaliações';
   }
+  if (tab==='admins') { refreshAdmins().then(renderAdminMgmt); }
+};
+
+function renderAdminMgmt() {
+  const el = document.getElementById('adminMgmtList');
+  if (!el) return;
+  const admins = state.admins || [];
+  const pending = admins.filter(a => a.status === 'pending');
+  const approved = admins.filter(a => a.status === 'approved');
+  const row = (a, actions) => `
+    <div class="player-list-item">
+      <div class="player-list-info">
+        <div class="player-list-name">${escAdmin(a.name)}</div>
+        <div class="player-list-meta">${escAdmin(a.email)}</div>
+      </div>
+      <div class="player-list-actions">${actions}</div>
+    </div>`;
+  el.innerHTML = `
+    <div class="dash-card-title" style="margin-bottom:12px">⏳ Solicitações pendentes (${pending.length})</div>
+    ${pending.length ? pending.map(a => row(a, `<button class="btn-edit" onclick="approveAdmin('${a.id}')">Aprovar</button><button class="btn-del" onclick="rejectAdmin('${a.id}')">Recusar</button>`)).join('')
+      : '<div style="color:var(--muted);font-size:13px">Nenhuma solicitação pendente.</div>'}
+    <div class="dash-card-title" style="margin:28px 0 12px">✅ Admins aprovados (${approved.length})</div>
+    ${approved.length ? approved.map(a => row(a, `<button class="btn-del" onclick="removeAdminUser('${a.id}')">Remover</button>`)).join('')
+      : '<div style="color:var(--muted);font-size:13px">Nenhum admin aprovado ainda.</div>'}
+  `;
+}
+window.approveAdmin = async function(id){
+  const a = state.admins.find(x => x.id === id); if (!a) return;
+  a.status = 'approved'; await saveAdmin(a); renderAdminMgmt(); showToast('✅ Admin aprovado','success');
+};
+window.rejectAdmin = async function(id){
+  if (!confirm('Recusar e apagar esta solicitação?')) return;
+  await removeAdmin(id); state.admins = state.admins.filter(x => x.id !== id); renderAdminMgmt(); showToast('Solicitação recusada','success');
+};
+window.removeAdminUser = async function(id){
+  if (!confirm('Remover este admin? Ele perde o acesso.')) return;
+  await removeAdmin(id); state.admins = state.admins.filter(x => x.id !== id); renderAdminMgmt(); showToast('Admin removido','success');
 };
 
 function renderAdmin() {
