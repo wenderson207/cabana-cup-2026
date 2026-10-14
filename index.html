@@ -2273,9 +2273,18 @@ const FIELD_SVG = `<svg viewBox="0 0 100 133" preserveAspectRatio="none" style="
   + `</svg>`;
 
 function teamCfg(team) {
-  if (!state.lineup[team]) state.lineup[team] = { logo:null, formation:'2-3-1', starters:[], positions:{} };
+  if (!state.lineup[team]) state.lineup[team] = { logo:null, formation:'2-3-1', starters:[], positions:{}, gk:{name:'',num:''} };
   if (!state.lineup[team].positions) state.lineup[team].positions = {};
+  if (!state.lineup[team].gk) state.lineup[team].gk = { name:'', num:'' };
   return state.lineup[team];
+}
+// Entidades no campo = goleiro (nome avulso, sem cadastro) + jogadores de linha titulares
+function pitchEntities(team) {
+  const cfg = teamCfg(team);
+  const list = [];
+  if (cfg.gk && cfg.gk.name) list.push({ id:'gk', nome:cfg.gk.name, camisa:cfg.gk.num||'', posicao:'GK', photo:null });
+  cfg.starters.forEach(id => { const p = state.players.find(x => x.id===id); if (p) list.push(p); });
+  return list;
 }
 function tokenAvatar(p, size) {
   return p.photo
@@ -2285,23 +2294,20 @@ function tokenAvatar(p, size) {
 // Distribui os titulares no campo conforme a formação (goleiro embaixo, ataque em cima)
 function arrangeByFormation(team) {
   const cfg = teamCfg(team);
-  const starters = cfg.starters.map(id => state.players.find(p => p.id===id)).filter(Boolean);
+  const ents = pitchEntities(team);
   const pos = {};
-  if (starters.length) {
-    let gk = starters.find(p => (p.posicao||'')==='GOL');
-    let outfield = starters.slice();
-    if (gk) outfield = outfield.filter(p => p.id!==gk.id); else gk = outfield.shift();
-    if (gk) pos[gk.id] = { x:50, y:90 };
-    const rows = FORMATIONS[cfg.formation] || [2,3,1];
-    const nRows = rows.length;
-    let idx = 0;
-    rows.forEach((n, ri) => {
-      const y = Math.round(72 - ri * (56 / Math.max(1, nRows-1)));
-      for (let k=0; k<n && idx<outfield.length; k++, idx++) {
-        pos[outfield[idx].id] = { x: Math.round((k+1)/(n+1)*100), y };
-      }
-    });
-  }
+  const gk = ents.find(e => e.id==='gk');
+  const outfield = ents.filter(e => e.id!=='gk');
+  if (gk) pos['gk'] = { x:50, y:90 };
+  const rows = FORMATIONS[cfg.formation] || [2,3,1];
+  const nRows = rows.length;
+  let idx = 0;
+  rows.forEach((n, ri) => {
+    const y = Math.round(72 - ri * (56 / Math.max(1, nRows-1)));
+    for (let k=0; k<n && idx<outfield.length; k++, idx++) {
+      pos[outfield[idx].id] = { x: Math.round((k+1)/(n+1)*100), y };
+    }
+  });
   cfg.positions = pos;
 }
 // Arrastar os jogadores no campo do admin (mouse + toque)
@@ -2353,17 +2359,19 @@ function renderLineupConfig() {
     const logoBox = cfg.logo
       ? `<img src="${cfg.logo}" style="width:72px;height:72px;object-fit:contain;border-radius:12px;background:#0d0d1c;border:1px solid rgba(255,255,255,0.1)">`
       : `<div style="width:72px;height:72px;border-radius:12px;background:var(--card2);border:1px dashed rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:24px">🏳️</div>`;
-    const starters = cfg.starters.map(id => state.players.find(p => p.id===id)).filter(Boolean);
-    const tokens = starters.map(p => {
-      const pos = cfg.positions[p.id] || { x:50, y:50 };
-      return `<div class="ltoken" data-team="${team}" data-pid="${p.id}" style="position:absolute;left:${pos.x}%;top:${pos.y}%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:1px;cursor:grab;touch-action:none;user-select:none;z-index:2">
-        ${tokenAvatar(p,40)}
-        <div style="font-size:9px;font-weight:700;background:rgba(0,0,0,0.72);color:#fff;padding:1px 6px;border-radius:5px;white-space:nowrap;margin-top:2px">${escAdmin((p.nome||'').split(' ')[0])}</div>
-        ${p.posicao?`<div style="font-size:7px;font-weight:800;letter-spacing:.5px;color:#0a0a14;background:var(--gold);padding:0 4px;border-radius:3px">${escAdmin(p.posicao)}</div>`:''}
+    const ents = pitchEntities(team);
+    const tokens = ents.map(e => {
+      const isGk = e.id==='gk';
+      const pos = cfg.positions[e.id] || { x:50, y:(isGk?90:50) };
+      const nome = isGk ? escAdmin(e.nome) : escAdmin((e.nome||'').split(' ')[0]);
+      return `<div class="ltoken" data-team="${team}" data-pid="${e.id}" style="position:absolute;left:${pos.x}%;top:${pos.y}%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:1px;cursor:grab;touch-action:none;user-select:none;z-index:2">
+        ${tokenAvatar(e,40)}
+        <div style="font-size:9px;font-weight:700;background:rgba(0,0,0,0.72);color:#fff;padding:1px 6px;border-radius:5px;white-space:nowrap;margin-top:2px">${nome}</div>
+        ${e.posicao?`<div style="font-size:7px;font-weight:800;letter-spacing:.5px;color:#0a0a14;background:var(--gold);padding:0 4px;border-radius:3px">${escAdmin(e.posicao)}</div>`:''}
       </div>`;
     }).join('');
-    const pitchInner = starters.length ? tokens
-      : '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.5);font-size:12px;text-align:center;padding:20px">Marque os titulares abaixo<br>e arraste cada um aqui</div>';
+    const pitchInner = ents.length ? tokens
+      : '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.5);font-size:12px;text-align:center;padding:20px">Preencha o goleiro e marque<br>os jogadores de linha</div>';
     return `
     <div class="dash-card" style="margin-bottom:20px">
       <div class="dash-card-title" style="margin-bottom:16px">🏟️ ${team}</div>
@@ -2375,6 +2383,13 @@ function renderLineupConfig() {
           <div style="font-size:10px;color:var(--muted);margin-top:6px">PNG quadrado, fundo transparente</div>
         </div>
       </div>
+      <div class="form-group">
+        <label class="form-label">🧤 Goleiro (só o nome, sem precisar cadastrar)</label>
+        <div style="display:flex;gap:8px">
+          <input class="form-input" style="flex:1" id="gkName_${team}" value="${escAdmin(cfg.gk.name||'')}" placeholder="Nome do goleiro" onchange="setGK('${team}')">
+          <input class="form-input" style="width:72px" id="gkNum_${team}" value="${escAdmin(cfg.gk.num||'')}" placeholder="Nº" onchange="setGK('${team}')">
+        </div>
+      </div>
       <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:6px">
         <div class="form-group" style="margin-bottom:0;flex:1;min-width:140px">
           <label class="form-label">Formação (base)</label>
@@ -2384,9 +2399,9 @@ function renderLineupConfig() {
         </div>
         <button class="btn-edit" onclick="setFormation('${team}', document.getElementById('formation_${team}').value)" title="Reposiciona pela formação">↻ Arrumar</button>
       </div>
-      <div style="font-size:11px;color:var(--muted);margin:8px 0 2px">🖐️ Arraste os jogadores no campo pra definir a posição de cada um.</div>
+      <div style="font-size:11px;color:var(--muted);margin:8px 0 2px">🖐️ Arraste os jogadores (e o goleiro) no campo pra definir a posição.</div>
       <div id="pitch_${team}" class="lineup-pitch" style="width:100%;max-width:340px;aspect-ratio:3/4;margin:10px auto 16px;${PITCH_WRAP};touch-action:none">${FIELD_SVG}${pitchInner}</div>
-      <div class="form-label" style="margin-bottom:8px">Titulares — <span style="color:var(--gold)">${cfg.starters.length}/7</span></div>
+      <div class="form-label" style="margin-bottom:8px">Jogadores de linha — <span style="color:var(--gold)">${cfg.starters.length}/6</span> <span style="color:var(--muted);font-weight:400">(quem não marcar vira reserva)</span></div>
       <div style="display:flex;flex-wrap:wrap;gap:8px">${chips}</div>
     </div>`;
   }).join('');
@@ -2398,13 +2413,19 @@ window.toggleStarter = function(team, pid) {
   const i = cfg.starters.indexOf(pid);
   if (i >= 0) { cfg.starters.splice(i,1); delete cfg.positions[pid]; }
   else {
-    if (cfg.starters.length >= 7) { showToast('Máximo de 7 titulares.',''); return; }
+    if (cfg.starters.length >= 6) { showToast('Máximo de 6 na linha (o goleiro é à parte).',''); return; }
     cfg.starters.push(pid);
-    if (!cfg.positions[pid]) {
-      const p = state.players.find(x => x.id===pid);
-      cfg.positions[pid] = (p && (p.posicao||'')==='GOL') ? { x:50, y:90 } : { x:50, y:50 };
-    }
+    if (!cfg.positions[pid]) cfg.positions[pid] = { x:50, y:50 };
   }
+  renderLineupConfig();
+};
+window.setGK = function(team) {
+  const cfg = teamCfg(team);
+  const name = document.getElementById('gkName_'+team).value.trim();
+  const num = document.getElementById('gkNum_'+team).value.trim();
+  cfg.gk = { name, num };
+  if (name && !cfg.positions['gk']) cfg.positions['gk'] = { x:50, y:90 };
+  if (!name) delete cfg.positions['gk'];
   renderLineupConfig();
 };
 window.setFormation = function(team, val) { teamCfg(team).formation = val; arrangeByFormation(team); renderLineupConfig(); };
@@ -2431,27 +2452,43 @@ function renderEscalacao() {
 }
 function renderTeamPitch(team) {
   const cfg = teamCfg(team);
-  const starters = cfg.starters.map(id => state.players.find(p => p.id===id)).filter(Boolean);
+  const ents = pitchEntities(team);
   const header = `
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
       ${cfg.logo ? `<img src="${cfg.logo}" style="width:44px;height:44px;object-fit:contain">` : '<div style="width:44px;height:44px;border-radius:8px;background:var(--card2);display:flex;align-items:center;justify-content:center">🏳️</div>'}
-      <div><div style="font-family:'Bebas Neue';font-size:26px;line-height:1">${team}</div><div style="font-size:11px;color:var(--muted);font-family:'Rajdhani';font-weight:600">Formação ${cfg.formation} · ${starters.length}/7</div></div>
+      <div><div style="font-family:'Bebas Neue';font-size:26px;line-height:1">${team}</div><div style="font-size:11px;color:var(--muted);font-family:'Rajdhani';font-weight:600">Formação ${cfg.formation} · ${ents.length}/7</div></div>
     </div>`;
-  if (!starters.length) {
+  if (!ents.length) {
     return `<div class="dash-card">${header}<div style="color:var(--muted);font-size:13px;padding:24px 0;text-align:center">Escalação ainda não definida pelo admin.</div></div>`;
   }
-  const tokens = starters.map(p => {
-    const pos = cfg.positions[p.id] || { x:50, y:50 };
+  const tokens = ents.map(e => {
+    const isGk = e.id==='gk';
+    const pos = cfg.positions[e.id] || { x:50, y:(isGk?90:50) };
+    const nome = isGk ? escAdmin(e.nome) : escAdmin((e.nome||'').split(' ')[0]);
     return `<div style="position:absolute;left:${pos.x}%;top:${pos.y}%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:1px;z-index:2">
-      ${tokenAvatar(p,44)}
-      <div style="font-size:10px;font-weight:700;background:rgba(0,0,0,0.72);color:#fff;padding:1px 7px;border-radius:5px;white-space:nowrap;margin-top:2px">${escAdmin((p.nome||'').split(' ')[0])}</div>
-      ${p.posicao?`<div style="font-size:8px;font-weight:800;letter-spacing:.5px;color:#0a0a14;background:var(--gold);padding:0 5px;border-radius:3px">${escAdmin(p.posicao)}</div>`:''}
+      ${tokenAvatar(e,44)}
+      <div style="font-size:10px;font-weight:700;background:rgba(0,0,0,0.72);color:#fff;padding:1px 7px;border-radius:5px;white-space:nowrap;margin-top:2px">${nome}</div>
+      ${e.posicao?`<div style="font-size:8px;font-weight:800;letter-spacing:.5px;color:#0a0a14;background:var(--gold);padding:0 5px;border-radius:3px">${escAdmin(e.posicao)}</div>`:''}
     </div>`;
   }).join('');
+  // Reservas = jogadores do time que não estão entre os titulares de linha
+  const reservas = state.players.filter(p => (p.equipe||'')===team && !cfg.starters.includes(p.id));
+  const reservasHtml = reservas.length ? `
+    <div style="margin-top:16px">
+      <div style="text-align:center;font-family:'Bebas Neue';font-size:20px;letter-spacing:3px;color:var(--gold);margin-bottom:10px">RESERVAS</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${reservas.map(p => `<div style="display:flex;align-items:center;gap:10px;background:var(--card2);border:1px solid rgba(255,255,255,0.06);border-radius:9px;padding:7px 12px">
+          <span style="font-size:9px;font-weight:800;color:#0a0a14;background:var(--gold);padding:1px 6px;border-radius:4px;min-width:34px;text-align:center">${escAdmin(p.posicao||'—')}</span>
+          <span style="font-size:13px;font-weight:600">${escAdmin(p.nome)}</span>
+          ${p.camisa?`<span style="margin-left:auto;font-family:'Bebas Neue';font-size:16px;color:var(--muted)">${p.camisa}</span>`:''}
+        </div>`).join('')}
+      </div>
+    </div>` : '';
   return `
     <div class="dash-card">
       ${header}
       <div style="width:100%;max-width:360px;aspect-ratio:3/4;margin:0 auto;${PITCH_WRAP}">${FIELD_SVG}${tokens}</div>
+      ${reservasHtml}
     </div>`;
 }
 function pitchSlot(p) {
