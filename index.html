@@ -2315,7 +2315,12 @@ const FANTASY_SLOTS = {
 function fantasyLocked() { return Date.now() >= CABANA_DATE; }
 function fantasyScore(f) {
   if (!f || !f.picks) return 0;
-  return f.picks.reduce((s, pid) => { const p = pid && state.players.find(x => x.id===pid); return s + (p ? calcScout(p) : 0); }, 0);
+  return f.picks.reduce((s, pid) => {
+    const p = pid && state.players.find(x => x.id===pid);
+    if (!p) return s;
+    const mult = (f.captain && pid === f.captain) ? 2 : 1;
+    return s + calcScout(p) * mult;
+  }, 0);
 }
 async function saveFantasyDoc(d) { await setDoc(doc(db, 'fantasy', d.userId), d); }
 
@@ -2324,12 +2329,14 @@ function ensureFantasyDraft() {
     const uid = state.currentUser && state.currentUser.id;
     const saved = uid && state.fantasy[uid];
     state.fantasyDraft = saved
-      ? { formation: saved.formation || '2-3-1', picks: (saved.picks || []).slice() }
-      : { formation: '2-3-1', picks: [] };
+      ? { formation: saved.formation || '2-3-1', picks: (saved.picks || []).slice(), captain: saved.captain || null }
+      : { formation: '2-3-1', picks: [], captain: null };
   }
   const n = (FANTASY_SLOTS[state.fantasyDraft.formation] || []).length;
   while (state.fantasyDraft.picks.length < n) state.fantasyDraft.picks.push(null);
   state.fantasyDraft.picks.length = n;
+  // capitão precisa continuar entre os escolhidos
+  if (state.fantasyDraft.captain && !state.fantasyDraft.picks.includes(state.fantasyDraft.captain)) state.fantasyDraft.captain = null;
   return state.fantasyDraft;
 }
 
@@ -2363,13 +2370,17 @@ function renderCartola() {
   const slotRows = slots.map((lbl, i) => {
     const pid = draft.picks[i];
     const p = pid && state.players.find(x => x.id===pid);
+    const isCap = p && draft.captain === pid;
+    const basePts = p ? calcScout(p) : 0;
+    const shownPts = isCap ? basePts * 2 : basePts;
     const inner = p
       ? `<div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
            ${tokenAvatar(p,38)}
-           <div style="min-width:0"><div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escAdmin(p.nome)}</div><div style="font-size:10px;color:var(--muted)">${escAdmin(p.equipe||'')}${p.posicao?' · '+escAdmin(p.posicao):''}</div></div>
+           <div style="min-width:0"><div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escAdmin(p.nome)}${isCap?' <span style=\"color:var(--gold)\">(C)</span>':''}</div><div style="font-size:10px;color:var(--muted)">${escAdmin(p.equipe||'')}${p.posicao?' · '+escAdmin(p.posicao):''}</div></div>
          </div>
-         <span style="font-family:'Bebas Neue';font-size:16px;color:${calcScout(p)>=0?'var(--green)':'var(--red)'}">${calcScout(p)>=0?'+':''}${calcScout(p)}</span>
-         <button onclick="event.stopPropagation();clearFantasySlot(${i})" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0 4px;line-height:1">×</button>`
+         <button onclick="event.stopPropagation();setCaptain('${pid}')" title="Capitão (dobra os pontos)" style="background:${isCap?'var(--gold)':'transparent'};color:${isCap?'#0a0a14':'var(--muted)'};border:1px solid ${isCap?'var(--gold)':'rgba(255,255,255,0.2)'};font-weight:800;font-size:12px;width:24px;height:24px;border-radius:50%;cursor:pointer;flex-shrink:0;line-height:1">C</button>
+         <span style="font-family:'Bebas Neue';font-size:16px;min-width:34px;text-align:right;color:${shownPts>=0?'var(--green)':'var(--red)'}">${shownPts>=0?'+':''}${shownPts}</span>
+         <button onclick="event.stopPropagation();clearFantasySlot(${i})" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0 2px;line-height:1">×</button>`
       : `<span style="flex:1;color:var(--muted);font-size:13px">＋ Escolher jogador</span><span style="color:var(--muted);font-size:16px">›</span>`;
     return `<div onclick="openFantasyPicker(${i})" style="display:flex;align-items:center;gap:10px;background:var(--card2);border:1px solid ${p?'rgba(255,215,0,0.25)':'rgba(255,255,255,0.08)'};border-radius:10px;padding:8px 10px;cursor:pointer">
       <span style="font-size:10px;font-weight:800;color:#0a0a14;background:var(--gold);padding:2px 7px;border-radius:5px;min-width:38px;text-align:center">${lbl}</span>
@@ -2392,7 +2403,7 @@ function renderCartola() {
           <div style="font-family:'Bebas Neue';font-size:30px;color:var(--gold);line-height:1">${score}</div>
         </div>
       </div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Escolha um jogador pra cada posição (pode misturar PFC e LU, e até você mesmo). Não dá pra repetir jogador.</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Escolha um jogador pra cada posição (pode misturar PFC e LU, e até você mesmo). Não repita jogador. Toque no <strong style="color:var(--gold)">C</strong> pra definir o capitão — ele <strong>dobra os pontos</strong> (pra cima ou pra baixo!).</div>
       <div style="display:flex;flex-direction:column;gap:8px">${slotRows}</div>
       <button class="btn-gold" style="width:100%;margin-top:18px" onclick="saveFantasy()">${saved?'Atualizar meu time':'Salvar meu time'} ✓</button>
       ${!complete ? `<div style="text-align:center;font-size:11px;color:var(--muted);margin-top:8px">Faltam ${slots.length - chosen.length} posição(ões) pra completar.</div>` : ''}
@@ -2403,11 +2414,12 @@ function fantasyTeamView(f) {
   const slots = FANTASY_SLOTS[f.formation] || [];
   const rows = (f.picks||[]).map((pid, i) => {
     const p = pid && state.players.find(x => x.id===pid);
-    const pts = p ? calcScout(p) : null;
-    return `<div style="display:flex;align-items:center;gap:10px;background:var(--card2);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:8px 12px">
+    const isCap = p && f.captain === pid;
+    const pts = p ? calcScout(p) * (isCap ? 2 : 1) : null;
+    return `<div style="display:flex;align-items:center;gap:10px;background:var(--card2);border:1px solid ${isCap?'rgba(255,215,0,0.3)':'rgba(255,255,255,0.06)'};border-radius:10px;padding:8px 12px">
       <span style="font-size:10px;font-weight:800;color:#0a0a14;background:var(--gold);padding:2px 7px;border-radius:5px;min-width:38px;text-align:center">${slots[i]||''}</span>
       ${p?tokenAvatar(p,34):''}
-      <span style="font-size:13px;font-weight:600;flex:1">${p?escAdmin(p.nome):'—'}</span>
+      <span style="font-size:13px;font-weight:600;flex:1">${p?escAdmin(p.nome):'—'}${isCap?' <span style="color:var(--gold);font-weight:800">(C)</span>':''}</span>
       <span style="font-family:'Bebas Neue';font-size:18px;color:${pts>=0?'var(--green)':'var(--red)'}">${pts!==null?(pts>=0?'+':'')+pts:''}</span>
     </div>`;
   }).join('');
@@ -2433,7 +2445,14 @@ window.setFantasyPick = function(i, pid) {
 };
 window.clearFantasySlot = function(i) {
   ensureFantasyDraft();
+  const pid = state.fantasyDraft.picks[i];
+  if (pid && state.fantasyDraft.captain === pid) state.fantasyDraft.captain = null;
   state.fantasyDraft.picks[i] = null;
+  renderCartola();
+};
+window.setCaptain = function(pid) {
+  ensureFantasyDraft();
+  state.fantasyDraft.captain = (state.fantasyDraft.captain === pid) ? null : pid;
   renderCartola();
 };
 window.openFantasyPicker = function(i) {
@@ -2477,7 +2496,8 @@ window.saveFantasy = async function() {
   const chosen = draft.picks.filter(Boolean);
   if (chosen.length !== slots.length) { showToast('Complete todas as posições do time.',''); return; }
   if (new Set(chosen).size !== chosen.length) { showToast('Tem jogador repetido no time.',''); return; }
-  const docu = { userId: uid, tecnico: state.currentUser.name || 'Técnico', formation: draft.formation, picks: draft.picks.slice(), updatedAt: Date.now() };
+  if (!draft.captain || !chosen.includes(draft.captain)) { showToast('Escolha o capitão (botão C) — ele dobra os pontos.',''); return; }
+  const docu = { userId: uid, tecnico: state.currentUser.name || 'Técnico', formation: draft.formation, picks: draft.picks.slice(), captain: draft.captain, updatedAt: Date.now() };
   try { await saveFantasyDoc(docu); state.fantasy[uid] = docu; showToast('✅ Time salvo! Boa sorte, técnico.','success'); renderCartola(); }
   catch(e) { showToast('Erro ao salvar o time.',''); console.error(e); }
 };
